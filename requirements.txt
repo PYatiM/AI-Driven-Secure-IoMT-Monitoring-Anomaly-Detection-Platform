@@ -1,0 +1,15 @@
+# Backend API
+fastapi
+uvicorn[standard]
+pydantic
+pydantic-settings
+python-dotenv
+httpx
+sqlalchemy
+alembic
+
+# Data processing and AI
+numpy
+pandas
+scikit-learn
+joblib
