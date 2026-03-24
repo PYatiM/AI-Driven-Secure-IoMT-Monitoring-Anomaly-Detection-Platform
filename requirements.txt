@@ -1,4 +1,4 @@
-# Backend API
+﻿# Backend API
 fastapi
 uvicorn[standard]
 pydantic
@@ -7,6 +7,7 @@ python-dotenv
 httpx
 sqlalchemy
 alembic
+psycopg[binary]
 
 # Data processing and AI
 numpy

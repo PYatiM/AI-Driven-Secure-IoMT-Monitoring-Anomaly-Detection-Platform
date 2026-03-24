@@ -21,6 +21,12 @@ async def lifespan(_: FastAPI):
         settings.app_name,
         settings.app_env,
     )
+    logger.info(
+        "PostgreSQL configured for %s:%s/%s",
+        settings.db_host,
+        settings.db_port,
+        settings.db_name,
+    )
     yield
     logger.info("Shutting down %s", settings.app_name)
 
