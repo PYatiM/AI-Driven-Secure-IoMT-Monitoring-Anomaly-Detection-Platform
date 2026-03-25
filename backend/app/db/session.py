@@ -20,16 +20,18 @@ def get_engine() -> Engine:
     )
 
 
-SessionLocal = sessionmaker(
-    autocommit=False,
-    autoflush=False,
-    bind=get_engine(),
-    expire_on_commit=False,
-)
+@lru_cache
+def get_session_factory() -> sessionmaker:
+    return sessionmaker(
+        autocommit=False,
+        autoflush=False,
+        bind=get_engine(),
+        expire_on_commit=False,
+    )
 
 
 def get_db() -> Generator[Session, None, None]:
-    db = SessionLocal()
+    db = get_session_factory()()
     try:
         yield db
     finally:

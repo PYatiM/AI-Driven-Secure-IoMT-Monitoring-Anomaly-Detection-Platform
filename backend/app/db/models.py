@@ -51,9 +51,9 @@ class AlertStatus(str, Enum):
 class User(TimestampMixin, Base):
     __tablename__ = "users"
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
     full_name: Mapped[str] = mapped_column(String(255), nullable=False)
-    email: Mapped[str] = mapped_column(String(255), nullable=False, unique=True, index=True)
+    email: Mapped[str] = mapped_column(String(255), nullable=False, unique=True)
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
     role: Mapped[UserRole] = mapped_column(
         SqlEnum(UserRole, name="user_role"),
@@ -75,15 +75,12 @@ class Device(TimestampMixin, Base):
     __tablename__ = "devices"
     __table_args__ = (
         Index("ix_devices_identifier_status", "device_identifier", "status"),
+        Index("ix_devices_api_key_prefix", "api_key_prefix", unique=True),
+        Index("ix_devices_api_key_hash", "api_key_hash", unique=True),
     )
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
-    device_identifier: Mapped[str] = mapped_column(
-        String(100),
-        nullable=False,
-        unique=True,
-        index=True,
-    )
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    device_identifier: Mapped[str] = mapped_column(String(100), nullable=False, unique=True)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     device_type: Mapped[str] = mapped_column(String(100), nullable=False)
     manufacturer: Mapped[str | None] = mapped_column(String(100), nullable=True)
@@ -95,6 +92,17 @@ class Device(TimestampMixin, Base):
         SqlEnum(DeviceStatus, name="device_status"),
         nullable=False,
         default=DeviceStatus.ACTIVE,
+    )
+    api_key_prefix: Mapped[str] = mapped_column(String(12), nullable=False)
+    api_key_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    api_key_created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=text("CURRENT_TIMESTAMP"),
+    )
+    last_authenticated_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
     )
     last_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     owner_user_id: Mapped[int | None] = mapped_column(
@@ -116,7 +124,7 @@ class DeviceData(TimestampMixin, Base):
         Index("ix_device_data_device_recorded_at", "device_id", "recorded_at"),
     )
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
     device_id: Mapped[int] = mapped_column(
         ForeignKey("devices.id", ondelete="CASCADE"),
         nullable=False,
@@ -149,7 +157,7 @@ class Alert(TimestampMixin, Base):
         Index("ix_alerts_triggered_at", "triggered_at"),
     )
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
     device_id: Mapped[int] = mapped_column(
         ForeignKey("devices.id", ondelete="CASCADE"),
         nullable=False,
