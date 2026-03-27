@@ -13,6 +13,7 @@ from backend.app.schemas.telemetry import (
     TelemetryPage,
     TelemetryRead,
 )
+from backend.app.services.alerts import maybe_store_alert_for_telemetry
 
 router = APIRouter(prefix="/telemetry", tags=["telemetry"])
 
@@ -47,6 +48,8 @@ def ingest_telemetry(
         payload=payload.payload,
     )
     db.add(telemetry)
+    db.flush()
+    maybe_store_alert_for_telemetry(db, telemetry)
     db.commit()
     db.refresh(telemetry)
     return telemetry
