@@ -50,6 +50,10 @@ class TelemetryRead(BaseModel):
     value_text: str | None
     unit: str | None
     payload: dict[str, Any] | None
+    anomaly_flag: bool
+    anomaly_score: float | None
+    confidence_score: float | None
+    model_name: str | None
     ingested_at: datetime
     created_at: datetime
     updated_at: datetime

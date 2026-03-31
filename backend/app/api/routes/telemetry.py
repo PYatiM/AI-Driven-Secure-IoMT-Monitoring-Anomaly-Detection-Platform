@@ -14,6 +14,7 @@ from backend.app.schemas.telemetry import (
     TelemetryRead,
 )
 from backend.app.services.alerts import maybe_store_alert_for_telemetry
+from backend.app.services.anomaly_detection import infer_telemetry_record
 
 router = APIRouter(prefix="/telemetry", tags=["telemetry"])
 
@@ -37,6 +38,22 @@ def ingest_telemetry(
     current_device: Device = Depends(get_current_device),
     db: Session = Depends(get_db),
 ) -> TelemetryRead:
+    inference_result = infer_telemetry_record(
+        {
+            "device_id": current_device.id,
+            "device_identifier": current_device.device_identifier,
+            "device_type": current_device.device_type,
+            "location": current_device.location,
+            "recorded_at": payload.recorded_at,
+            "metric_name": payload.metric_name,
+            "metric_type": payload.metric_type,
+            "value_numeric": payload.value_numeric,
+            "value_text": payload.value_text,
+            "unit": payload.unit,
+            "payload": payload.payload or {},
+        }
+    )
+
     telemetry = DeviceData(
         device_id=current_device.id,
         recorded_at=payload.recorded_at,
@@ -46,6 +63,10 @@ def ingest_telemetry(
         value_text=payload.value_text,
         unit=payload.unit,
         payload=payload.payload,
+        anomaly_flag=inference_result.is_anomaly if inference_result else False,
+        anomaly_score=inference_result.anomaly_score if inference_result else None,
+        confidence_score=inference_result.confidence_score if inference_result else None,
+        model_name=inference_result.model_name if inference_result else None,
     )
     db.add(telemetry)
     db.flush()

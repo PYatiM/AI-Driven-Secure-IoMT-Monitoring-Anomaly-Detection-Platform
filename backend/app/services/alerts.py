@@ -61,8 +61,13 @@ def store_alert(db: Session, payload: AlertCreate) -> Alert:
 
 def maybe_store_alert_for_telemetry(db: Session, telemetry: DeviceData) -> Alert | None:
     payload = telemetry.payload or {}
-    anomaly_score = _coerce_score(payload.get("anomaly_score"))
-    anomaly_detected = bool(payload.get("anomaly_detected")) or anomaly_score is not None
+    anomaly_score = telemetry.anomaly_score
+    if anomaly_score is None:
+        anomaly_score = _coerce_score(payload.get("anomaly_score"))
+
+    anomaly_detected = bool(telemetry.anomaly_flag) or bool(payload.get("anomaly_detected"))
+    if anomaly_score is not None:
+        anomaly_detected = True
 
     status_text = (telemetry.value_text or "").strip().lower()
     critical_status = (
@@ -84,6 +89,17 @@ def maybe_store_alert_for_telemetry(db: Session, telemetry: DeviceData) -> Alert
             description = (
                 f"Device reported status '{telemetry.value_text}' for metric "
                 f"'{telemetry.metric_name}'."
+            )
+        elif telemetry.anomaly_flag:
+            confidence = (
+                f" with confidence {telemetry.confidence_score:.2f}"
+                if telemetry.confidence_score is not None
+                else ""
+            )
+            model_name = telemetry.model_name or "configured model"
+            description = (
+                f"The {model_name} flagged metric '{telemetry.metric_name}' as anomalous"
+                f"{confidence}."
             )
         elif anomaly_score is not None:
             description = (

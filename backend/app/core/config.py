@@ -24,6 +24,9 @@ class Settings(BaseSettings):
     db_echo: bool = Field(default=False)
     database_url: str | None = Field(default=None)
 
+    ai_model_enabled: bool = Field(default=False)
+    ai_model_path: str | None = Field(default=None)
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
