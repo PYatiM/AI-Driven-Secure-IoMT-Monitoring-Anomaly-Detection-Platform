@@ -1,6 +1,7 @@
 ﻿from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 
 import numpy as np
@@ -12,9 +13,11 @@ from ai.persistence import ModelArtifact, load_model_artifact
 @dataclass
 class AnomalyInferenceResult:
     model_name: str
+    model_version: str
     is_anomaly: bool
     anomaly_score: float
     confidence_score: float
+    predicted_at: str
 
 
 class RealtimeAnomalyInferencePipeline:
@@ -47,9 +50,11 @@ class RealtimeAnomalyInferencePipeline:
         confidence_score = self._calculate_confidence(anomaly_score)
         return AnomalyInferenceResult(
             model_name=self.artifact.model_name,
+            model_version=self.artifact.version,
             is_anomaly=is_anomaly,
             anomaly_score=anomaly_score,
             confidence_score=confidence_score,
+            predicted_at=datetime.now(timezone.utc).isoformat(),
         )
 
     def infer_dataframe(self, dataframe: pd.DataFrame) -> pd.DataFrame:
@@ -66,5 +71,6 @@ class RealtimeAnomalyInferencePipeline:
                 "anomaly_score": anomaly_scores.astype(float),
                 "confidence_score": confidence_scores,
                 "model_name": self.artifact.model_name,
+                "model_version": self.artifact.version,
             }
         )

@@ -14,12 +14,15 @@ from ai.data.preprocessing import DataPreprocessor
 @dataclass
 class ModelArtifact:
     model_name: str
+    version: str
     detector: Any
     preprocessor: DataPreprocessor
     feature_pipeline: FeatureExtractionPipeline
+    parent_version: str | None = None
     calibration: dict[str, float] = field(default_factory=dict)
     training_metrics: dict[str, float | int | None] | None = None
     feature_names: list[str] = field(default_factory=list)
+    training_data_fingerprint: str | None = None
     trained_at: str = field(
         default_factory=lambda: datetime.now(timezone.utc).isoformat()
     )

@@ -1,4 +1,4 @@
-﻿from functools import lru_cache
+from functools import lru_cache
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -26,6 +26,11 @@ class Settings(BaseSettings):
 
     ai_model_enabled: bool = Field(default=False)
     ai_model_path: str | None = Field(default=None)
+    ai_model_registry_path: str = Field(default="ai/artifacts/model_registry.json")
+    ai_prediction_log_path: str = Field(default="ai/logs/model_predictions.jsonl")
+    ai_monitoring_metrics_path: str = Field(
+        default="ai/monitoring/model_performance.json"
+    )
 
     model_config = SettingsConfigDict(
         env_file=".env",

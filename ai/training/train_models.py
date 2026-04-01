@@ -12,6 +12,12 @@ from ai.models.isolation_forest import IsolationForestDetector
 from ai.models.one_class_svm import OneClassSVMDetector
 from ai.models.zscore import ZScoreAnomalyDetector
 from ai.persistence import ModelArtifact, save_model_artifact
+from ai.versioning import (
+    ModelRegistry,
+    ModelVersionRecord,
+    compute_file_fingerprint,
+    create_version_tag,
+)
 
 MODEL_BUILDERS = {
     "zscore": ZScoreAnomalyDetector,
@@ -29,10 +35,13 @@ def train_models(
     test_size: float = 0.2,
     random_state: int = 42,
     stratify: bool = False,
+    registry_path: str | Path | None = None,
 ) -> dict[str, dict[str, object]]:
     selected_models = models or list(MODEL_BUILDERS.keys())
     output_path = Path(output_dir)
+    registry = ModelRegistry(registry_path or output_path / "model_registry.json")
     loader = TelemetryDatasetLoader()
+    data_fingerprint = compute_file_fingerprint(data_path)
 
     if file_format.lower() == "csv":
         dataframe = loader.load_csv(data_path)
@@ -60,6 +69,9 @@ def train_models(
         if model_name not in MODEL_BUILDERS:
             raise ValueError(f"Unsupported model: {model_name}")
 
+        previous_record = registry.get_latest(model_name)
+        version = create_version_tag()
+
         detector = MODEL_BUILDERS[model_name]()
         detector.fit(train_bundle.features, labels=train_bundle.labels)
         training_scores = detector.decision_function(train_bundle.features)
@@ -74,9 +86,11 @@ def train_models(
 
         artifact = ModelArtifact(
             model_name=model_name,
+            version=version,
             detector=detector,
             preprocessor=loader.preprocessor,
             feature_pipeline=loader.feature_pipeline,
+            parent_version=previous_record.version if previous_record else None,
             calibration={
                 "score_min": float(np.min(training_scores)),
                 "score_max": float(np.max(training_scores)),
@@ -85,14 +99,30 @@ def train_models(
             },
             training_metrics=metrics,
             feature_names=train_bundle.feature_names,
+            training_data_fingerprint=data_fingerprint,
         )
 
         artifact_path = save_model_artifact(
             artifact,
-            output_path / f"{model_name}_artifact.joblib",
+            output_path / f"{model_name}_{version}.joblib",
         )
+        registry.register(
+            ModelVersionRecord(
+                model_name=model_name,
+                version=version,
+                artifact_path=str(artifact_path),
+                created_at=artifact.trained_at,
+                parent_version=artifact.parent_version,
+                training_data_path=str(data_path),
+                training_data_fingerprint=data_fingerprint,
+                metrics=metrics,
+            )
+        )
+
         results[model_name] = {
+            "version": version,
             "artifact_path": str(artifact_path),
+            "parent_version": artifact.parent_version,
             "metrics": metrics,
             "feature_count": len(train_bundle.feature_names),
         }
@@ -107,6 +137,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--output-dir",
         default="ai/artifacts",
         help="Directory where trained model artifacts will be saved.",
+    )
+    parser.add_argument(
+        "--registry-path",
+        default=None,
+        help="Optional path to the model registry JSON file.",
     )
     parser.add_argument(
         "--file-format",
@@ -144,6 +179,7 @@ def main() -> None:
         test_size=args.test_size,
         random_state=args.random_state,
         stratify=args.stratify,
+        registry_path=args.registry_path,
     )
     print(json.dumps(results, indent=2))
 
