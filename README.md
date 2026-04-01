@@ -102,4 +102,10 @@ Because the platform operates in a sensitive healthcare context, security contro
 
 ## Current Status
 
-The repository is currently in the documentation and initialization stage. The architecture described here provides the baseline direction for future implementation of services, pipelines, and user interfaces.
+The repository has moved beyond initialization and now includes a working backend and AI foundation:
+
+- a FastAPI backend with health, device registration, device-authenticated telemetry ingestion, and alert retrieval endpoints
+- SQLAlchemy models and Alembic migrations for devices, telemetry, alerts, and anomaly-related fields
+- an AI pipeline covering preprocessing, feature extraction, model training, persisted artifacts, live inference, model version tracking, prediction logging, and runtime performance monitoring
+
+The platform is still an early-stage implementation rather than a finished product, but it is no longer documentation-only. The current codebase provides an executable base for iterating on detection quality, operational workflows, and frontend/dashboard capabilities.

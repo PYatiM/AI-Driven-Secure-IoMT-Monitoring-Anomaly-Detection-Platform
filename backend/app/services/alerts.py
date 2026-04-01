@@ -1,4 +1,4 @@
-﻿from datetime import datetime, timezone
+from datetime import datetime, timezone
 from typing import Any
 
 from sqlalchemy.orm import Session
@@ -17,6 +17,22 @@ def _coerce_score(value: Any) -> float | None:
     except (TypeError, ValueError):
         return None
     return max(0.0, min(1.0, score))
+
+
+def _coerce_bool(value: Any) -> bool:
+    if isinstance(value, bool):
+        return value
+    if value is None:
+        return False
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in {"true", "1", "yes", "y", "on"}:
+            return True
+        if normalized in {"false", "0", "no", "n", "off", ""}:
+            return False
+    if isinstance(value, (int, float)):
+        return value != 0
+    return bool(value)
 
 
 def _severity_from_score(score: float | None) -> AlertSeverity:
@@ -65,9 +81,9 @@ def maybe_store_alert_for_telemetry(db: Session, telemetry: DeviceData) -> Alert
     if anomaly_score is None:
         anomaly_score = _coerce_score(payload.get("anomaly_score"))
 
-    anomaly_detected = bool(telemetry.anomaly_flag) or bool(payload.get("anomaly_detected"))
-    if anomaly_score is not None:
-        anomaly_detected = True
+    anomaly_detected = bool(telemetry.anomaly_flag) or _coerce_bool(
+        payload.get("anomaly_detected")
+    )
 
     status_text = (telemetry.value_text or "").strip().lower()
     critical_status = (

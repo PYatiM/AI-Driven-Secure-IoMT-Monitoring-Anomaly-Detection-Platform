@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 from dataclasses import dataclass, field
 
@@ -46,7 +46,9 @@ class DataPreprocessor:
         frame = frame.replace([np.inf, -np.inf], np.nan)
 
         for column in frame.select_dtypes(include=["object", "string"]).columns:
-            frame[column] = frame[column].astype("string").str.strip()
+            frame[column] = frame[column].apply(
+                lambda value: value.strip() if isinstance(value, str) else value
+            )
 
         datetime_columns = self.datetime_columns or []
         inferred_datetime_columns = [
