@@ -15,6 +15,12 @@ class Settings(BaseSettings):
     app_debug: bool = Field(default=True)
     log_level: str = Field(default="INFO")
     api_v1_prefix: str = Field(default="/api/v1")
+    https_enforced: bool = Field(default=False)
+    https_redirect_status_code: int = Field(default=307)
+    https_hsts_enabled: bool = Field(default=True)
+    https_hsts_max_age: int = Field(default=31536000, ge=0)
+    https_hsts_include_subdomains: bool = Field(default=True)
+    https_hsts_preload: bool = Field(default=False)
 
     db_host: str = Field(default="localhost")
     db_port: int = Field(default=5432, ge=1, le=65535)
