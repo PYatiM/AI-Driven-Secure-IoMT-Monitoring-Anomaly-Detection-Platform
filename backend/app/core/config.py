@@ -24,6 +24,10 @@ class Settings(BaseSettings):
     db_echo: bool = Field(default=False)
     database_url: str | None = Field(default=None)
 
+    jwt_secret_key: str = Field(default="change-this-jwt-secret-in-production")
+    jwt_algorithm: str = Field(default="HS256")
+    jwt_access_token_expires_minutes: int = Field(default=60, ge=1)
+
     ai_model_enabled: bool = Field(default=False)
     ai_model_path: str | None = Field(default=None)
     ai_model_registry_path: str = Field(default="ai/artifacts/model_registry.json")

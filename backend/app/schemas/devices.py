@@ -1,4 +1,4 @@
-﻿from datetime import datetime
+from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -14,7 +14,7 @@ class DeviceRegistrationRequest(BaseModel):
     firmware_version: str | None = Field(default=None, max_length=100)
     location: str | None = Field(default=None, max_length=255)
     ip_address: str | None = Field(default=None, max_length=45)
-    owner_user_id: int | None = None
+    owner_user_id: int | None = Field(default=None, ge=1)
 
 
 class DeviceRead(BaseModel):

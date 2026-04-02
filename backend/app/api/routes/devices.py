@@ -1,12 +1,12 @@
-﻿from datetime import datetime, timezone
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from backend.app.api.deps import get_current_device
-from backend.app.db.models import Device, DeviceStatus
+from backend.app.api.deps import get_current_device, require_roles
+from backend.app.db.models import Device, DeviceStatus, User, UserRole
 from backend.app.db.session import get_db
 from backend.app.schemas.devices import (
     DeviceRead,
@@ -26,6 +26,7 @@ router = APIRouter(prefix="/devices", tags=["devices"])
 )
 def register_device(
     payload: DeviceRegistrationRequest,
+    current_user: User = Depends(require_roles(UserRole.ADMIN, UserRole.OPERATOR)),
     db: Session = Depends(get_db),
 ) -> DeviceRegistrationResponse:
     existing_device = db.scalar(
@@ -36,6 +37,23 @@ def register_device(
             status_code=status.HTTP_409_CONFLICT,
             detail="A device with this identifier already exists.",
         )
+
+    owner_user_id = payload.owner_user_id
+    if current_user.role == UserRole.OPERATOR:
+        owner_user_id = current_user.id if owner_user_id is None else owner_user_id
+        if owner_user_id != current_user.id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Operators can only register devices for themselves.",
+            )
+
+    if owner_user_id is not None:
+        owner = db.scalar(select(User).where(User.id == owner_user_id))
+        if owner is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="The specified owner user does not exist.",
+            )
 
     api_key, api_key_prefix, api_key_hash = generate_device_api_key()
     now = datetime.now(timezone.utc)
@@ -49,7 +67,7 @@ def register_device(
         firmware_version=payload.firmware_version,
         location=payload.location,
         ip_address=payload.ip_address,
-        owner_user_id=payload.owner_user_id,
+        owner_user_id=owner_user_id,
         status=DeviceStatus.ACTIVE,
         api_key_prefix=api_key_prefix,
         api_key_hash=api_key_hash,

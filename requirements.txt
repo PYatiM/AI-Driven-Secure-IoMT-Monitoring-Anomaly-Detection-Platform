@@ -1,4 +1,4 @@
-﻿# Backend API
+# Backend API
 fastapi
 uvicorn[standard]
 pydantic
@@ -8,6 +8,8 @@ httpx
 sqlalchemy
 alembic
 psycopg[binary]
+PyJWT
+passlib
 
 # Data processing and AI
 numpy
