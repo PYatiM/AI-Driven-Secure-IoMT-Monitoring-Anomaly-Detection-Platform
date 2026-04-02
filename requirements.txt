@@ -10,6 +10,7 @@ alembic
 psycopg[binary]
 PyJWT
 passlib
+cryptography
 
 # Data processing and AI
 numpy

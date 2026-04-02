@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 from datetime import datetime
 from enum import Enum
@@ -15,10 +15,10 @@ from sqlalchemy import (
     Text,
     text,
 )
-from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from backend.app.db.base import Base, TimestampMixin
+from backend.app.db.types import EncryptedJSONType, EncryptedTextType
 
 
 class UserRole(str, Enum):
@@ -52,7 +52,7 @@ class User(TimestampMixin, Base):
     __tablename__ = "users"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    full_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    full_name: Mapped[str] = mapped_column(EncryptedTextType(), nullable=False)
     email: Mapped[str] = mapped_column(String(255), nullable=False, unique=True)
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
     role: Mapped[UserRole] = mapped_column(
@@ -86,8 +86,8 @@ class Device(TimestampMixin, Base):
     manufacturer: Mapped[str | None] = mapped_column(String(100), nullable=True)
     model: Mapped[str | None] = mapped_column(String(100), nullable=True)
     firmware_version: Mapped[str | None] = mapped_column(String(100), nullable=True)
-    location: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    ip_address: Mapped[str | None] = mapped_column(String(45), nullable=True)
+    location: Mapped[str | None] = mapped_column(EncryptedTextType(), nullable=True)
+    ip_address: Mapped[str | None] = mapped_column(EncryptedTextType(), nullable=True)
     status: Mapped[DeviceStatus] = mapped_column(
         SqlEnum(DeviceStatus, name="device_status"),
         nullable=False,
@@ -137,9 +137,9 @@ class DeviceData(TimestampMixin, Base):
     metric_name: Mapped[str] = mapped_column(String(100), nullable=False)
     metric_type: Mapped[str | None] = mapped_column(String(100), nullable=True)
     value_numeric: Mapped[float | None] = mapped_column(Float, nullable=True)
-    value_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    value_text: Mapped[str | None] = mapped_column(EncryptedTextType(), nullable=True)
     unit: Mapped[str | None] = mapped_column(String(50), nullable=True)
-    payload: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    payload: Mapped[dict | None] = mapped_column(EncryptedJSONType(), nullable=True)
     anomaly_flag: Mapped[bool] = mapped_column(
         Boolean,
         nullable=False,
@@ -180,7 +180,7 @@ class Alert(TimestampMixin, Base):
         nullable=True,
     )
     title: Mapped[str] = mapped_column(String(255), nullable=False)
-    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    description: Mapped[str | None] = mapped_column(EncryptedTextType(), nullable=True)
     severity: Mapped[AlertSeverity] = mapped_column(
         SqlEnum(AlertSeverity, name="alert_severity"),
         nullable=False,
