@@ -1,7 +1,7 @@
-﻿import math
+import math
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -15,6 +15,7 @@ from backend.app.schemas.telemetry import (
 )
 from backend.app.services.alerts import maybe_store_alert_for_telemetry
 from backend.app.services.anomaly_detection import infer_telemetry_record
+from backend.app.services.audit import set_audit_context
 
 router = APIRouter(prefix="/telemetry", tags=["telemetry"])
 
@@ -34,6 +35,7 @@ def _normalize_datetime(value: datetime | None) -> datetime | None:
     summary="Ingest telemetry data from an authenticated device",
 )
 def ingest_telemetry(
+    request: Request,
     payload: TelemetryIngestRequest,
     current_device: Device = Depends(get_current_device),
     db: Session = Depends(get_db),
@@ -73,6 +75,16 @@ def ingest_telemetry(
     maybe_store_alert_for_telemetry(db, telemetry)
     db.commit()
     db.refresh(telemetry)
+    set_audit_context(
+        request,
+        action="telemetry.ingest",
+        resource_type="telemetry",
+        resource_id=telemetry.id,
+        details={
+            "metric_name": telemetry.metric_name,
+            "anomaly_flag": telemetry.anomaly_flag,
+        },
+    )
     return telemetry
 
 
@@ -82,6 +94,7 @@ def ingest_telemetry(
     summary="Fetch telemetry data for the authenticated device",
 )
 def fetch_telemetry(
+    request: Request,
     device_id: int | None = Query(default=None, ge=1),
     start_time: datetime | None = Query(default=None),
     end_time: datetime | None = Query(default=None),
@@ -127,6 +140,17 @@ def fetch_telemetry(
     )
 
     total_pages = math.ceil(total_items / page_size) if total_items else 0
+    set_audit_context(
+        request,
+        action="telemetry.list",
+        resource_type="telemetry",
+        details={
+            "device_id": effective_device_id,
+            "page": page,
+            "page_size": page_size,
+            "total_items": total_items,
+        },
+    )
     return TelemetryPage(
         items=telemetry_items,
         page=page,

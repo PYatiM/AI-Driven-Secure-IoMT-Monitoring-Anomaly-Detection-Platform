@@ -48,6 +48,13 @@ class AlertStatus(str, Enum):
     DISMISSED = "dismissed"
 
 
+class AuditActorType(str, Enum):
+    ANONYMOUS = "anonymous"
+    USER = "user"
+    DEVICE = "device"
+    SYSTEM = "system"
+
+
 class User(TimestampMixin, Base):
     __tablename__ = "users"
 
@@ -69,6 +76,7 @@ class User(TimestampMixin, Base):
 
     devices: Mapped[list[Device]] = relationship(back_populates="owner")
     assigned_alerts: Mapped[list[Alert]] = relationship(back_populates="assigned_user")
+    audit_logs: Mapped[list[AuditLog]] = relationship(back_populates="actor_user")
 
 
 class Device(TimestampMixin, Base):
@@ -116,6 +124,7 @@ class Device(TimestampMixin, Base):
         cascade="all, delete-orphan",
     )
     alerts: Mapped[list[Alert]] = relationship(back_populates="device")
+    audit_logs: Mapped[list[AuditLog]] = relationship(back_populates="actor_device")
 
 
 class DeviceData(TimestampMixin, Base):
@@ -203,3 +212,50 @@ class Alert(TimestampMixin, Base):
     device: Mapped[Device] = relationship(back_populates="alerts")
     source_data: Mapped[DeviceData | None] = relationship(back_populates="alerts")
     assigned_user: Mapped[User | None] = relationship(back_populates="assigned_alerts")
+
+
+class AuditLog(Base):
+    __tablename__ = "audit_logs"
+    __table_args__ = (
+        Index("ix_audit_logs_occurred_at", "occurred_at"),
+        Index("ix_audit_logs_action_status", "action", "status_code"),
+        Index("ix_audit_logs_actor_user", "actor_user_id", "occurred_at"),
+        Index("ix_audit_logs_actor_device", "actor_device_id", "occurred_at"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    actor_type: Mapped[AuditActorType] = mapped_column(
+        SqlEnum(AuditActorType, name="audit_actor_type"),
+        nullable=False,
+        default=AuditActorType.ANONYMOUS,
+    )
+    actor_user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    actor_device_id: Mapped[int | None] = mapped_column(
+        ForeignKey("devices.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    action: Mapped[str] = mapped_column(String(100), nullable=False)
+    resource_type: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    resource_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    http_method: Mapped[str] = mapped_column(String(10), nullable=False)
+    path: Mapped[str] = mapped_column(String(255), nullable=False)
+    status_code: Mapped[int] = mapped_column(Integer, nullable=False)
+    success: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        server_default=text("true"),
+    )
+    ip_address: Mapped[str | None] = mapped_column(EncryptedTextType(), nullable=True)
+    user_agent: Mapped[str | None] = mapped_column(EncryptedTextType(), nullable=True)
+    details: Mapped[dict | None] = mapped_column(EncryptedJSONType(), nullable=True)
+    occurred_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=text("CURRENT_TIMESTAMP"),
+    )
+
+    actor_user: Mapped[User | None] = relationship(back_populates="audit_logs")
+    actor_device: Mapped[Device | None] = relationship(back_populates="audit_logs")

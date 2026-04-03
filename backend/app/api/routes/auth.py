@@ -1,15 +1,16 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from backend.app.api.deps import get_current_user
 from backend.app.core.config import get_settings
-from backend.app.db.models import User, UserRole
+from backend.app.db.models import AuditActorType, User, UserRole
 from backend.app.db.session import get_db
 from backend.app.schemas.auth import TokenResponse, UserLoginRequest, UserRegistrationRequest
 from backend.app.schemas.users import UserRead
 from backend.app.security.auth import create_access_token, hash_password, verify_password
+from backend.app.services.audit import set_audit_context
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -41,6 +42,7 @@ def _issue_token_response(user: User) -> TokenResponse:
     summary="Register a new user",
 )
 def register_user(
+    request: Request,
     payload: UserRegistrationRequest,
     db: Session = Depends(get_db),
 ) -> TokenResponse:
@@ -74,6 +76,15 @@ def register_user(
         ) from None
 
     db.refresh(user)
+    set_audit_context(
+        request,
+        action="user.register",
+        resource_type="user",
+        resource_id=user.id,
+        details={"role": user.role.value},
+        actor_type=AuditActorType.USER,
+        actor_user_id=user.id,
+    )
     return _issue_token_response(user)
 
 
@@ -83,6 +94,7 @@ def register_user(
     summary="Authenticate a user and return a JWT",
 )
 def login_user(
+    request: Request,
     payload: UserLoginRequest,
     db: Session = Depends(get_db),
 ) -> TokenResponse:
@@ -101,6 +113,15 @@ def login_user(
             detail="User account is inactive.",
         )
 
+    set_audit_context(
+        request,
+        action="user.login",
+        resource_type="user",
+        resource_id=user.id,
+        details={"role": user.role.value},
+        actor_type=AuditActorType.USER,
+        actor_user_id=user.id,
+    )
     return _issue_token_response(user)
 
 
@@ -109,5 +130,14 @@ def login_user(
     response_model=UserRead,
     summary="Get the currently authenticated user",
 )
-def get_authenticated_user(current_user: User = Depends(get_current_user)) -> UserRead:
+def get_authenticated_user(
+    request: Request,
+    current_user: User = Depends(get_current_user),
+) -> UserRead:
+    set_audit_context(
+        request,
+        action="user.read_self",
+        resource_type="user",
+        resource_id=current_user.id,
+    )
     return current_user

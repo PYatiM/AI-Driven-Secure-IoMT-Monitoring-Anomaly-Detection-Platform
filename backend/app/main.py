@@ -10,6 +10,7 @@ from backend.app.api.routes.health import router as health_router
 from backend.app.core.config import get_settings
 from backend.app.core.logging import configure_logging
 from backend.app.middleware import (
+    AuditLoggingMiddleware,
     AuthenticationMiddleware,
     HTTPSMiddleware,
     RequestValidationMiddleware,
@@ -36,6 +37,7 @@ async def lifespan(_: FastAPI):
     )
     logger.info("HTTPS enforcement enabled: %s", settings.https_enforced)
     logger.info("API request validation enabled: %s", settings.api_validate_requests)
+    logger.info("Audit logging enabled: %s", settings.audit_logging_enabled)
     yield
     logger.info("Shutting down %s", settings.app_name)
 
@@ -91,6 +93,11 @@ def create_app() -> FastAPI:
         hsts_max_age=settings.https_hsts_max_age,
         hsts_include_subdomains=settings.https_hsts_include_subdomains,
         hsts_preload=settings.https_hsts_preload,
+    )
+    application.add_middleware(
+        AuditLoggingMiddleware,
+        api_prefix=settings.api_v1_prefix,
+        enabled=settings.audit_logging_enabled,
     )
     application.include_router(health_router)
     application.include_router(api_router, prefix=settings.api_v1_prefix)

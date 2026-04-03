@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -8,6 +8,7 @@ from backend.app.db.models import User, UserRole
 from backend.app.db.session import get_db
 from backend.app.schemas.users import UserCreateRequest, UserRead
 from backend.app.security.auth import hash_password
+from backend.app.services.audit import set_audit_context
 
 router = APIRouter(prefix="/users", tags=["users"])
 
@@ -22,10 +23,18 @@ def _normalize_email(email: str) -> str:
     summary="List users",
 )
 def list_users(
+    request: Request,
     _: User = Depends(require_roles(UserRole.ADMIN)),
     db: Session = Depends(get_db),
 ) -> list[UserRead]:
-    return list(db.scalars(select(User).order_by(User.id.asc())))
+    users = list(db.scalars(select(User).order_by(User.id.asc())))
+    set_audit_context(
+        request,
+        action="user.list",
+        resource_type="user",
+        details={"count": len(users)},
+    )
+    return users
 
 
 @router.post(
@@ -35,6 +44,7 @@ def list_users(
     summary="Create a user",
 )
 def create_user(
+    request: Request,
     payload: UserCreateRequest,
     _: User = Depends(require_roles(UserRole.ADMIN)),
     db: Session = Depends(get_db),
@@ -66,4 +76,11 @@ def create_user(
         ) from None
 
     db.refresh(user)
+    set_audit_context(
+        request,
+        action="user.create",
+        resource_type="user",
+        resource_id=user.id,
+        details={"role": user.role.value, "is_active": user.is_active},
+    )
     return user

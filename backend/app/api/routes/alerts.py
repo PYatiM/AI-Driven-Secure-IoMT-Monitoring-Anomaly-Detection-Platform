@@ -1,7 +1,7 @@
-﻿import math
+import math
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -9,6 +9,7 @@ from backend.app.api.deps import get_current_device
 from backend.app.db.models import Alert, AlertSeverity, AlertStatus, Device
 from backend.app.db.session import get_db
 from backend.app.schemas.alerts import AlertPage
+from backend.app.services.audit import set_audit_context
 
 router = APIRouter(prefix="/alerts", tags=["alerts"])
 
@@ -27,6 +28,7 @@ def _normalize_datetime(value: datetime | None) -> datetime | None:
     summary="Fetch alerts for the authenticated device",
 )
 def fetch_alerts(
+    request: Request,
     device_id: int | None = Query(default=None, ge=1),
     severity: AlertSeverity | None = Query(default=None),
     status: AlertStatus | None = Query(default=None),
@@ -75,6 +77,17 @@ def fetch_alerts(
     )
 
     total_pages = math.ceil(total_items / page_size) if total_items else 0
+    set_audit_context(
+        request,
+        action="alert.list",
+        resource_type="alert",
+        details={
+            "device_id": effective_device_id,
+            "page": page,
+            "page_size": page_size,
+            "total_items": total_items,
+        },
+    )
     return AlertPage(
         items=alert_items,
         page=page,

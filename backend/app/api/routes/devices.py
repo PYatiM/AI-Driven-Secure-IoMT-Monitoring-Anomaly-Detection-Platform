@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -14,6 +14,7 @@ from backend.app.schemas.devices import (
     DeviceRegistrationResponse,
 )
 from backend.app.security.api_keys import generate_device_api_key
+from backend.app.services.audit import set_audit_context
 
 router = APIRouter(prefix="/devices", tags=["devices"])
 
@@ -25,6 +26,7 @@ router = APIRouter(prefix="/devices", tags=["devices"])
     summary="Register a new device",
 )
 def register_device(
+    request: Request,
     payload: DeviceRegistrationRequest,
     current_user: User = Depends(require_roles(UserRole.ADMIN, UserRole.OPERATOR)),
     db: Session = Depends(get_db),
@@ -85,6 +87,16 @@ def register_device(
         ) from None
 
     db.refresh(device)
+    set_audit_context(
+        request,
+        action="device.register",
+        resource_type="device",
+        resource_id=device.id,
+        details={
+            "device_identifier": device.device_identifier,
+            "owner_user_id": device.owner_user_id,
+        },
+    )
     return DeviceRegistrationResponse(
         id=device.id,
         device_identifier=device.device_identifier,
@@ -113,6 +125,13 @@ def register_device(
     summary="Get the currently authenticated device",
 )
 def get_authenticated_device(
+    request: Request,
     current_device: Device = Depends(get_current_device),
 ) -> DeviceRead:
+    set_audit_context(
+        request,
+        action="device.read_self",
+        resource_type="device",
+        resource_id=current_device.id,
+    )
     return current_device
