@@ -76,3 +76,10 @@ class DeviceRead(BaseModel):
 class DeviceRegistrationResponse(DeviceRead):
     api_key: str
     message: str
+
+
+class DeviceTokenResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    expires_in: int
+    device: DeviceRead

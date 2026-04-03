@@ -9,7 +9,7 @@ from starlette.responses import JSONResponse, Response
 
 from backend.app.api.deps import (
     AuthenticationError,
-    authenticate_device_api_key,
+    authenticate_device_bearer_token,
     authenticate_user_bearer_token,
 )
 from backend.app.db.session import get_session_factory
@@ -30,6 +30,7 @@ class AuthenticationMiddleware(BaseHTTPMiddleware):
             "/openapi.json",
             f"{normalized_prefix}/auth/register",
             f"{normalized_prefix}/auth/login",
+            f"{normalized_prefix}/devices/token",
         }
         self.user_exact_paths = {
             f"{normalized_prefix}/auth/me",
@@ -61,9 +62,9 @@ class AuthenticationMiddleware(BaseHTTPMiddleware):
                     request.headers.get("Authorization"),
                 )
             else:
-                request.state.current_device = authenticate_device_api_key(
+                request.state.current_device = authenticate_device_bearer_token(
                     db,
-                    request.headers.get("X-API-Key"),
+                    request.headers.get("Authorization"),
                 )
         except AuthenticationError as error:
             return JSONResponse(

@@ -37,6 +37,11 @@ class Settings(BaseSettings):
     jwt_secret_key: str = Field(default="change-this-jwt-secret-in-production")
     jwt_algorithm: str = Field(default="HS256")
     jwt_access_token_expires_minutes: int = Field(default=60, ge=1)
+    device_token_secret_key: str = Field(
+        default="change-this-device-token-secret-in-production"
+    )
+    device_token_algorithm: str = Field(default="HS256")
+    device_token_expires_minutes: int = Field(default=15, ge=1)
     data_encryption_key: str = Field(
         default="change-this-data-encryption-key-in-production"
     )

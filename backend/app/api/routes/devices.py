@@ -5,15 +5,18 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from backend.app.api.deps import get_current_device, require_roles
-from backend.app.db.models import Device, DeviceStatus, User, UserRole
+from backend.app.api.deps import get_current_device, get_device_by_api_key, require_roles
+from backend.app.core.config import get_settings
+from backend.app.db.models import AuditActorType, Device, DeviceStatus, User, UserRole
 from backend.app.db.session import get_db
 from backend.app.schemas.devices import (
     DeviceRead,
     DeviceRegistrationRequest,
     DeviceRegistrationResponse,
+    DeviceTokenResponse,
 )
 from backend.app.security.api_keys import generate_device_api_key
+from backend.app.security.auth import create_device_access_token
 from backend.app.services.audit import set_audit_context
 
 router = APIRouter(prefix="/devices", tags=["devices"])
@@ -116,6 +119,39 @@ def register_device(
         last_authenticated_at=device.last_authenticated_at,
         api_key=api_key,
         message="Store this API key securely. It is only returned once.",
+    )
+
+
+@router.post(
+    "/token",
+    response_model=DeviceTokenResponse,
+    summary="Exchange a device API key for a short-lived bearer token",
+)
+def issue_device_token(
+    request: Request,
+    current_device: Device = Depends(get_device_by_api_key),
+) -> DeviceTokenResponse:
+    settings = get_settings()
+    access_token = create_device_access_token(
+        device_id=str(current_device.id),
+        secret_key=settings.device_token_secret_key,
+        algorithm=settings.device_token_algorithm,
+        expires_minutes=settings.device_token_expires_minutes,
+    )
+    set_audit_context(
+        request,
+        action="device.issue_token",
+        resource_type="device",
+        resource_id=current_device.id,
+        actor_type=AuditActorType.DEVICE,
+        actor_device_id=current_device.id,
+        details={"device_identifier": current_device.device_identifier},
+    )
+    return DeviceTokenResponse(
+        access_token=access_token,
+        token_type="bearer",
+        expires_in=settings.device_token_expires_minutes * 60,
+        device=current_device,
     )
 
 
