@@ -1,17 +1,40 @@
-﻿from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from backend.app.security.sanitization import (
+    require_non_empty_sanitized_text,
+    sanitize_nested_strings,
+    sanitize_text_input,
+)
+
 
 class TelemetryIngestRequest(BaseModel):
     recorded_at: datetime
-    metric_name: str = Field(..., max_length=100)
+    metric_name: str = Field(..., min_length=1, max_length=100)
     metric_type: str | None = Field(default=None, max_length=100)
     value_numeric: float | None = None
     value_text: str | None = None
     unit: str | None = Field(default=None, max_length=50)
     payload: dict[str, Any] | None = None
+
+    @field_validator("metric_name", mode="before")
+    @classmethod
+    def sanitize_metric_name(cls, value: str) -> str:
+        return require_non_empty_sanitized_text(value, field_name="metric_name")
+
+    @field_validator("metric_type", "value_text", "unit", mode="before")
+    @classmethod
+    def sanitize_optional_text_fields(cls, value: str | None) -> str | None:
+        return sanitize_text_input(value, empty_to_none=True)
+
+    @field_validator("payload", mode="before")
+    @classmethod
+    def sanitize_payload(cls, value: dict[str, Any] | None) -> dict[str, Any] | None:
+        if value is None:
+            return None
+        return sanitize_nested_strings(value)
 
     @field_validator("recorded_at", mode="after")
     @classmethod
