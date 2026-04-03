@@ -1,13 +1,19 @@
 import logging
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
 
 from backend.app.api.router import api_router
 from backend.app.api.routes.health import router as health_router
 from backend.app.core.config import get_settings
 from backend.app.core.logging import configure_logging
-from backend.app.middleware import AuthenticationMiddleware, HTTPSMiddleware
+from backend.app.middleware import (
+    AuthenticationMiddleware,
+    HTTPSMiddleware,
+    RequestValidationMiddleware,
+)
 
 settings = get_settings()
 configure_logging(settings.log_level)
@@ -29,8 +35,31 @@ async def lifespan(_: FastAPI):
         settings.db_name,
     )
     logger.info("HTTPS enforcement enabled: %s", settings.https_enforced)
+    logger.info("API request validation enabled: %s", settings.api_validate_requests)
     yield
     logger.info("Shutting down %s", settings.app_name)
+
+
+async def request_validation_exception_handler(
+    request: Request,
+    exc: RequestValidationError,
+) -> JSONResponse:
+    errors = [
+        {
+            "location": list(error.get("loc", ())),
+            "message": error.get("msg", "Invalid request."),
+            "type": error.get("type", "validation_error"),
+        }
+        for error in exc.errors()
+    ]
+    return JSONResponse(
+        status_code=422,
+        content={
+            "detail": "Request validation failed.",
+            "errors": errors,
+            "path": request.url.path,
+        },
+    )
 
 
 def create_app() -> FastAPI:
@@ -38,6 +67,17 @@ def create_app() -> FastAPI:
         title=settings.app_name,
         debug=settings.app_debug,
         lifespan=lifespan,
+    )
+    application.add_exception_handler(
+        RequestValidationError,
+        request_validation_exception_handler,
+    )
+    application.add_middleware(
+        RequestValidationMiddleware,
+        api_prefix=settings.api_v1_prefix,
+        validate_requests=settings.api_validate_requests,
+        enforce_json_content_type=settings.api_enforce_json_content_type,
+        max_request_body_bytes=settings.api_max_request_body_bytes,
     )
     application.add_middleware(
         AuthenticationMiddleware,
