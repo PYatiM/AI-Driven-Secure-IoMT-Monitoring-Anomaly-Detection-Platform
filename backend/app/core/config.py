@@ -1,4 +1,4 @@
-﻿from functools import lru_cache
+from functools import lru_cache
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -20,6 +20,8 @@ class Settings(BaseSettings):
     api_max_request_body_bytes: int = Field(default=1048576, ge=1)
     audit_logging_enabled: bool = Field(default=True)
     security_event_logging_enabled: bool = Field(default=True)
+    alert_escalation_enabled: bool = Field(default=True)
+    alert_escalation_target: str = Field(default="security-operations")
     https_enforced: bool = Field(default=False)
     https_redirect_status_code: int = Field(default=307)
     https_hsts_enabled: bool = Field(default=True)

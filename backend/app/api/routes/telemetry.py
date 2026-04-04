@@ -1,4 +1,4 @@
-﻿import math
+import math
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
@@ -93,9 +93,39 @@ def ingest_telemetry(
     )
     db.add(telemetry)
     db.flush()
-    maybe_store_alert_for_telemetry(db, telemetry)
+    alert = maybe_store_alert_for_telemetry(db, telemetry)
     db.commit()
     db.refresh(telemetry)
+    if alert is not None:
+        db.refresh(alert)
+
+    if alert is not None and alert.escalated:
+        log_security_event(
+            request=request,
+            event_type="alert.escalated",
+            category=SecurityEventCategory.ALERTING,
+            severity=SecurityEventSeverity.CRITICAL,
+            outcome=SecurityEventOutcome.DETECTED,
+            description=(
+                alert.escalation_reason
+                or f"Alert {alert.id} was escalated for critical anomaly handling."
+            ),
+            details={
+                "alert_id": alert.id,
+                "device_id": telemetry.device_id,
+                "data_id": telemetry.id,
+                "metric_name": telemetry.metric_name,
+                "severity": alert.severity.value,
+                "escalation_target": alert.escalation_target,
+                "anomaly_score": alert.anomaly_score,
+                "intrusion_score": telemetry.intrusion_score,
+                "intrusion_type": telemetry.intrusion_type,
+            },
+            actor_type=AuditActorType.DEVICE,
+            actor_device_id=current_device.id,
+            resource_type="alert",
+            resource_id=alert.id,
+        )
 
     if telemetry.intrusion_flag:
         log_security_event(
@@ -131,6 +161,8 @@ def ingest_telemetry(
             "anomaly_flag": telemetry.anomaly_flag,
             "intrusion_flag": telemetry.intrusion_flag,
             "intrusion_type": telemetry.intrusion_type,
+            "alert_id": alert.id if alert is not None else None,
+            "alert_escalated": alert.escalated if alert is not None else False,
         },
     )
     return telemetry

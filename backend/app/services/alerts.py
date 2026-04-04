@@ -1,8 +1,9 @@
-﻿from datetime import datetime, timezone
+from datetime import datetime, timezone
 from typing import Any
 
 from sqlalchemy.orm import Session
 
+from backend.app.core.config import get_settings
 from backend.app.db.models import Alert, AlertSeverity, AlertStatus, DeviceData
 from backend.app.schemas.alerts import AlertCreate
 
@@ -64,6 +65,68 @@ def _coerce_severity(value: Any, fallback: AlertSeverity) -> AlertSeverity:
     return fallback
 
 
+def _resolve_escalation_target() -> str | None:
+    target = get_settings().alert_escalation_target.strip()
+    return target or None
+
+
+def _should_escalate_alert(severity: AlertSeverity) -> bool:
+    settings = get_settings()
+    return settings.alert_escalation_enabled and severity == AlertSeverity.CRITICAL
+
+
+def _build_escalation_reason(
+    telemetry: DeviceData,
+    *,
+    intrusion_detected: bool,
+    critical_status: bool,
+    anomaly_score: float | None,
+    intrusion_score: float | None,
+) -> str:
+    if intrusion_detected:
+        readable_type = (telemetry.intrusion_type or "anomalous_activity").replace("_", " ")
+        if intrusion_score is not None:
+            return (
+                f"Critical intrusion anomaly '{readable_type}' detected for metric "
+                f"'{telemetry.metric_name}' with intrusion score {intrusion_score:.2f}."
+            )
+        return (
+            f"Critical intrusion anomaly '{readable_type}' detected for metric "
+            f"'{telemetry.metric_name}'."
+        )
+
+    if critical_status:
+        return (
+            f"Device status metric '{telemetry.metric_name}' reported critical state "
+            f"'{telemetry.value_text}'."
+        )
+
+    if telemetry.anomaly_flag:
+        model_name = telemetry.model_name or "configured model"
+        confidence = (
+            f" and confidence {telemetry.confidence_score:.2f}"
+            if telemetry.confidence_score is not None
+            else ""
+        )
+        score_text = (
+            f" with anomaly score {anomaly_score:.2f}"
+            if anomaly_score is not None
+            else ""
+        )
+        return (
+            f"{model_name} classified metric '{telemetry.metric_name}' as a critical anomaly"
+            f"{score_text}{confidence}."
+        )
+
+    if anomaly_score is not None:
+        return (
+            f"Metric '{telemetry.metric_name}' reached critical anomaly severity with "
+            f"score {anomaly_score:.2f}."
+        )
+
+    return f"Critical anomaly detected for metric '{telemetry.metric_name}'."
+
+
 def store_alert(db: Session, payload: AlertCreate) -> Alert:
     alert = Alert(
         device_id=payload.device_id,
@@ -74,7 +137,12 @@ def store_alert(db: Session, payload: AlertCreate) -> Alert:
         severity=payload.severity,
         status=payload.status,
         anomaly_score=payload.anomaly_score,
+        escalated=payload.escalated,
+        escalation_level=payload.escalation_level,
+        escalation_target=payload.escalation_target,
+        escalation_reason=payload.escalation_reason,
         triggered_at=payload.triggered_at or datetime.now(timezone.utc),
+        escalated_at=payload.escalated_at,
     )
     db.add(alert)
     db.flush()
@@ -167,6 +235,21 @@ def maybe_store_alert_for_telemetry(db: Session, telemetry: DeviceData) -> Alert
             else:
                 description = f"Telemetry anomaly detected for metric '{telemetry.metric_name}'."
 
+    should_escalate = _should_escalate_alert(severity)
+    escalation_reason = None
+    escalation_target = None
+    escalated_at = None
+    if should_escalate:
+        escalation_reason = _build_escalation_reason(
+            telemetry,
+            intrusion_detected=intrusion_detected,
+            critical_status=critical_status,
+            anomaly_score=anomaly_score,
+            intrusion_score=intrusion_score,
+        )
+        escalation_target = _resolve_escalation_target()
+        escalated_at = datetime.now(timezone.utc)
+
     alert_payload = AlertCreate(
         device_id=telemetry.device_id,
         data_id=telemetry.id,
@@ -175,6 +258,11 @@ def maybe_store_alert_for_telemetry(db: Session, telemetry: DeviceData) -> Alert
         severity=severity,
         status=AlertStatus.OPEN,
         anomaly_score=score_for_storage,
+        escalated=should_escalate,
+        escalation_level=severity.value if should_escalate else None,
+        escalation_target=escalation_target,
+        escalation_reason=escalation_reason,
         triggered_at=telemetry.recorded_at,
+        escalated_at=escalated_at,
     )
     return store_alert(db, alert_payload)

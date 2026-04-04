@@ -18,7 +18,12 @@ class AlertCreate(BaseModel):
     severity: AlertSeverity = AlertSeverity.MEDIUM
     status: AlertStatus = AlertStatus.OPEN
     anomaly_score: float | None = Field(default=None, ge=0.0, le=1.0)
+    escalated: bool = False
+    escalation_level: str | None = Field(default=None, max_length=50)
+    escalation_target: str | None = Field(default=None, max_length=100)
+    escalation_reason: str | None = None
     triggered_at: datetime | None = None
+    escalated_at: datetime | None = None
 
     @field_validator("title", mode="before")
     @classmethod
@@ -28,6 +33,21 @@ class AlertCreate(BaseModel):
     @field_validator("description", mode="before")
     @classmethod
     def sanitize_description(cls, value: str | None) -> str | None:
+        return sanitize_text_input(value, empty_to_none=True)
+
+    @field_validator("escalation_level", mode="before")
+    @classmethod
+    def sanitize_escalation_level(cls, value: str | None) -> str | None:
+        return sanitize_text_input(value, empty_to_none=True)
+
+    @field_validator("escalation_target", mode="before")
+    @classmethod
+    def sanitize_escalation_target(cls, value: str | None) -> str | None:
+        return sanitize_text_input(value, empty_to_none=True)
+
+    @field_validator("escalation_reason", mode="before")
+    @classmethod
+    def sanitize_escalation_reason(cls, value: str | None) -> str | None:
         return sanitize_text_input(value, empty_to_none=True)
 
 
@@ -43,7 +63,12 @@ class AlertRead(BaseModel):
     severity: AlertSeverity
     status: AlertStatus
     anomaly_score: float | None
+    escalated: bool
+    escalation_level: str | None
+    escalation_target: str | None
+    escalation_reason: str | None
     triggered_at: datetime
+    escalated_at: datetime | None
     acknowledged_at: datetime | None
     resolved_at: datetime | None
     created_at: datetime

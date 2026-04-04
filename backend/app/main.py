@@ -1,4 +1,4 @@
-﻿import logging
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
@@ -47,6 +47,9 @@ async def lifespan(_: FastAPI):
     logger.info("API request validation enabled: %s", settings.api_validate_requests)
     logger.info("Audit logging enabled: %s", settings.audit_logging_enabled)
     logger.info("Security event logging enabled: %s", settings.security_event_logging_enabled)
+    logger.info("Alert escalation enabled: %s", settings.alert_escalation_enabled)
+    if settings.alert_escalation_enabled:
+        logger.info("Alert escalation target: %s", settings.alert_escalation_target)
     logger.info("Secure key storage enabled: %s", key_storage_status.enabled)
     if key_storage_status.enabled:
         logger.info("Secure key storage configured: %s", key_storage_status.configured)

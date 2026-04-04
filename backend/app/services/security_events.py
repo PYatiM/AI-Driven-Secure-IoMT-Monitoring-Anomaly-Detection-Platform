@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
@@ -21,6 +21,7 @@ class SecurityEventCategory(str, Enum):
     FIREWALL = "firewall"
     INTRUSION_DETECTION = "intrusion_detection"
     KEY_MANAGEMENT = "key_management"
+    ALERTING = "alerting"
     SYSTEM = "system"
 
 

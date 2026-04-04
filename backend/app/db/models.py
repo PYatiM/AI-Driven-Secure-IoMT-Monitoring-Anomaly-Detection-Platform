@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 from datetime import datetime
 from enum import Enum
@@ -183,6 +183,7 @@ class Alert(TimestampMixin, Base):
     __table_args__ = (
         Index("ix_alerts_device_status", "device_id", "status"),
         Index("ix_alerts_triggered_at", "triggered_at"),
+        Index("ix_alerts_escalated_triggered_at", "escalated", "triggered_at"),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
@@ -211,11 +212,21 @@ class Alert(TimestampMixin, Base):
         default=AlertStatus.OPEN,
     )
     anomaly_score: Mapped[float | None] = mapped_column(Float, nullable=True)
+    escalated: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+        server_default=text("false"),
+    )
+    escalation_level: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    escalation_target: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    escalation_reason: Mapped[str | None] = mapped_column(EncryptedTextType(), nullable=True)
     triggered_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
         server_default=text("CURRENT_TIMESTAMP"),
     )
+    escalated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     acknowledged_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
