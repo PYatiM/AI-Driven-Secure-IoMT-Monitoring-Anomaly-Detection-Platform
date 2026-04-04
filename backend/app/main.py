@@ -1,4 +1,4 @@
-import logging
+﻿import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
@@ -15,6 +15,7 @@ from backend.app.middleware import (
     HTTPSMiddleware,
     RequestValidationMiddleware,
 )
+from backend.app.security.key_storage import get_key_storage_status
 
 settings = get_settings()
 configure_logging(settings.log_level)
@@ -24,6 +25,7 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
+    key_storage_status = get_key_storage_status()
     logger.info(
         "Starting %s in %s mode",
         settings.app_name,
@@ -38,6 +40,14 @@ async def lifespan(_: FastAPI):
     logger.info("HTTPS enforcement enabled: %s", settings.https_enforced)
     logger.info("API request validation enabled: %s", settings.api_validate_requests)
     logger.info("Audit logging enabled: %s", settings.audit_logging_enabled)
+    logger.info("Secure key storage enabled: %s", key_storage_status.enabled)
+    if key_storage_status.enabled:
+        logger.info("Secure key storage configured: %s", key_storage_status.configured)
+        logger.info("Secure key storage path: %s", key_storage_status.path)
+        logger.info(
+            "Secure key storage env fallback enabled: %s",
+            key_storage_status.env_fallback_enabled,
+        )
     yield
     logger.info("Shutting down %s", settings.app_name)
 

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+﻿from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -10,6 +10,7 @@ from backend.app.db.session import get_db
 from backend.app.schemas.auth import TokenResponse, UserLoginRequest, UserRegistrationRequest
 from backend.app.schemas.users import UserRead
 from backend.app.security.auth import create_access_token, hash_password, verify_password
+from backend.app.security.key_storage import get_jwt_secret_key
 from backend.app.services.audit import set_audit_context
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -23,7 +24,7 @@ def _issue_token_response(user: User) -> TokenResponse:
     settings = get_settings()
     access_token = create_access_token(
         subject=str(user.id),
-        secret_key=settings.jwt_secret_key,
+        secret_key=get_jwt_secret_key(),
         algorithm=settings.jwt_algorithm,
         expires_minutes=settings.jwt_access_token_expires_minutes,
     )

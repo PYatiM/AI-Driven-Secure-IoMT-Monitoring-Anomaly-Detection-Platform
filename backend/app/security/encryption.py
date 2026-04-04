@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import base64
 from functools import lru_cache
@@ -7,7 +7,7 @@ from typing import Final
 
 from cryptography.fernet import Fernet, InvalidToken
 
-from backend.app.core.config import get_settings
+from backend.app.security.key_storage import get_data_encryption_key
 
 ENCRYPTION_PREFIX: Final[str] = "enc::"
 
@@ -18,8 +18,7 @@ def _derive_fernet_key(secret: str) -> bytes:
 
 @lru_cache
 def get_fernet() -> Fernet:
-    settings = get_settings()
-    return Fernet(_derive_fernet_key(settings.data_encryption_key))
+    return Fernet(_derive_fernet_key(get_data_encryption_key()))
 
 
 def is_encrypted(value: str | None) -> bool:

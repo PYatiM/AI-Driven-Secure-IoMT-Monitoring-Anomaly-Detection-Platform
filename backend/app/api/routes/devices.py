@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+﻿from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import select
@@ -17,6 +17,7 @@ from backend.app.schemas.devices import (
 )
 from backend.app.security.api_keys import generate_device_api_key
 from backend.app.security.auth import create_device_access_token
+from backend.app.security.key_storage import get_device_token_secret_key
 from backend.app.services.audit import set_audit_context
 
 router = APIRouter(prefix="/devices", tags=["devices"])
@@ -134,7 +135,7 @@ def issue_device_token(
     settings = get_settings()
     access_token = create_device_access_token(
         device_id=str(current_device.id),
-        secret_key=settings.device_token_secret_key,
+        secret_key=get_device_token_secret_key(),
         algorithm=settings.device_token_algorithm,
         expires_minutes=settings.device_token_expires_minutes,
     )

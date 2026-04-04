@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+﻿from dataclasses import dataclass
 from datetime import datetime, timezone
 
 from fastapi import Depends, Header, HTTPException, Request, status
@@ -11,6 +11,7 @@ from backend.app.db.models import Device, DeviceStatus, User, UserRole
 from backend.app.db.session import get_db
 from backend.app.security.api_keys import build_api_key_lookup
 from backend.app.security.auth import decode_access_token, decode_device_access_token
+from backend.app.security.key_storage import get_device_token_secret_key, get_jwt_secret_key
 
 UNAUTHORIZED_DEVICE_API_KEY_MESSAGE = "Invalid or missing device API key."
 UNAUTHORIZED_DEVICE_TOKEN_MESSAGE = "Invalid or missing device bearer token."
@@ -88,7 +89,7 @@ def authenticate_device_bearer_token(db: Session, authorization: str | None) -> 
     try:
         payload = decode_device_access_token(
             token=token,
-            secret_key=settings.device_token_secret_key,
+            secret_key=get_device_token_secret_key(),
             algorithm=settings.device_token_algorithm,
         )
         device_id = int(payload.get("sub", "0"))
@@ -125,7 +126,7 @@ def authenticate_user_bearer_token(db: Session, authorization: str | None) -> Us
     try:
         payload = decode_access_token(
             token=token,
-            secret_key=settings.jwt_secret_key,
+            secret_key=get_jwt_secret_key(),
             algorithm=settings.jwt_algorithm,
         )
         user_id = int(payload.get("sub", "0"))

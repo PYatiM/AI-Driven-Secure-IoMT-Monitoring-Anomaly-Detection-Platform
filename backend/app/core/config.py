@@ -45,6 +45,10 @@ class Settings(BaseSettings):
     data_encryption_key: str = Field(
         default="change-this-data-encryption-key-in-production"
     )
+    secure_key_storage_enabled: bool = Field(default=False)
+    secure_key_storage_path: str = Field(default="backend/secure/key_store.enc")
+    key_storage_master_key: str | None = Field(default=None)
+    key_storage_allow_env_fallback: bool = Field(default=True)
 
     ai_model_enabled: bool = Field(default=False)
     ai_model_path: str | None = Field(default=None)
