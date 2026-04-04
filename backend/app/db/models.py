@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from datetime import datetime
 from enum import Enum
@@ -12,7 +12,6 @@ from sqlalchemy import (
     Index,
     Integer,
     String,
-    Text,
     text,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -158,6 +157,15 @@ class DeviceData(TimestampMixin, Base):
     anomaly_score: Mapped[float | None] = mapped_column(Float, nullable=True)
     confidence_score: Mapped[float | None] = mapped_column(Float, nullable=True)
     model_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    intrusion_flag: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+        server_default=text("false"),
+    )
+    intrusion_score: Mapped[float | None] = mapped_column(Float, nullable=True)
+    intrusion_type: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    intrusion_reason: Mapped[str | None] = mapped_column(EncryptedTextType(), nullable=True)
     ingested_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,

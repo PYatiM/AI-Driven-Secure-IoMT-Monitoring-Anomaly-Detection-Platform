@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta, timezone
+﻿from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -77,6 +77,10 @@ class TelemetryRead(BaseModel):
     anomaly_score: float | None
     confidence_score: float | None
     model_name: str | None
+    intrusion_flag: bool
+    intrusion_score: float | None
+    intrusion_type: str | None
+    intrusion_reason: str | None
     ingested_at: datetime
     created_at: datetime
     updated_at: datetime

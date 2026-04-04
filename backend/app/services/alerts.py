@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+﻿from datetime import datetime, timezone
 from typing import Any
 
 from sqlalchemy.orm import Session
@@ -16,7 +16,13 @@ def _coerce_score(value: Any) -> float | None:
         score = float(value)
     except (TypeError, ValueError):
         return None
-    return max(0.0, min(1.0, score))
+
+    if 0.0 <= score <= 1.0:
+        return score
+
+    if score < 0.0:
+        return 0.0
+    return 1.0
 
 
 def _coerce_bool(value: Any) -> bool:
@@ -77,10 +83,17 @@ def store_alert(db: Session, payload: AlertCreate) -> Alert:
 
 def maybe_store_alert_for_telemetry(db: Session, telemetry: DeviceData) -> Alert | None:
     payload = telemetry.payload or {}
-    anomaly_score = telemetry.anomaly_score
+    anomaly_score = _coerce_score(telemetry.anomaly_score)
     if anomaly_score is None:
         anomaly_score = _coerce_score(payload.get("anomaly_score"))
 
+    intrusion_score = _coerce_score(telemetry.intrusion_score)
+    if intrusion_score is None:
+        intrusion_score = _coerce_score(payload.get("intrusion_score"))
+
+    intrusion_detected = bool(telemetry.intrusion_flag) or _coerce_bool(
+        payload.get("intrusion_detected")
+    )
     anomaly_detected = bool(telemetry.anomaly_flag) or _coerce_bool(
         payload.get("anomaly_detected")
     )
@@ -91,39 +104,68 @@ def maybe_store_alert_for_telemetry(db: Session, telemetry: DeviceData) -> Alert
         and status_text in CRITICAL_STATUS_VALUES
     )
 
-    if not anomaly_detected and not critical_status:
+    if not intrusion_detected and not anomaly_detected and not critical_status:
         return None
 
-    default_severity = (
-        AlertSeverity.CRITICAL if critical_status else _severity_from_score(anomaly_score)
-    )
+    score_for_storage = anomaly_score
+    if intrusion_detected:
+        score_for_storage = intrusion_score if intrusion_score is not None else anomaly_score
+        default_severity = (
+            AlertSeverity.CRITICAL
+            if intrusion_score is None or intrusion_score >= 0.85
+            else AlertSeverity.HIGH
+        )
+    else:
+        default_severity = (
+            AlertSeverity.CRITICAL if critical_status else _severity_from_score(anomaly_score)
+        )
+
     severity = _coerce_severity(payload.get("severity"), default_severity)
-    title = payload.get("alert_title") or f"{telemetry.metric_name} anomaly detected"
-    description = payload.get("alert_description")
-    if description is None:
-        if critical_status:
-            description = (
-                f"Device reported status '{telemetry.value_text}' for metric "
-                f"'{telemetry.metric_name}'."
-            )
-        elif telemetry.anomaly_flag:
-            confidence = (
-                f" with confidence {telemetry.confidence_score:.2f}"
-                if telemetry.confidence_score is not None
-                else ""
-            )
-            model_name = telemetry.model_name or "configured model"
-            description = (
-                f"The {model_name} flagged metric '{telemetry.metric_name}' as anomalous"
-                f"{confidence}."
-            )
-        elif anomaly_score is not None:
-            description = (
-                f"Telemetry for metric '{telemetry.metric_name}' exceeded the anomaly "
-                f"threshold with score {anomaly_score:.2f}."
-            )
-        else:
-            description = f"Telemetry anomaly detected for metric '{telemetry.metric_name}'."
+
+    if intrusion_detected:
+        intrusion_type = (
+            telemetry.intrusion_type or payload.get("intrusion_type") or "anomalous_activity"
+        )
+        readable_type = intrusion_type.replace("_", " ")
+        title = payload.get("alert_title") or f"Potential intrusion detected: {telemetry.metric_name}"
+        description = payload.get("alert_description") or telemetry.intrusion_reason
+        if description is None:
+            if intrusion_score is not None:
+                description = (
+                    f"Telemetry for metric '{telemetry.metric_name}' was classified as {readable_type} "
+                    f"with intrusion score {intrusion_score:.2f}."
+                )
+            else:
+                description = (
+                    f"Telemetry for metric '{telemetry.metric_name}' was classified as {readable_type}."
+                )
+    else:
+        title = payload.get("alert_title") or f"{telemetry.metric_name} anomaly detected"
+        description = payload.get("alert_description")
+        if description is None:
+            if critical_status:
+                description = (
+                    f"Device reported status '{telemetry.value_text}' for metric "
+                    f"'{telemetry.metric_name}'."
+                )
+            elif telemetry.anomaly_flag:
+                confidence = (
+                    f" with confidence {telemetry.confidence_score:.2f}"
+                    if telemetry.confidence_score is not None
+                    else ""
+                )
+                model_name = telemetry.model_name or "configured model"
+                description = (
+                    f"The {model_name} flagged metric '{telemetry.metric_name}' as anomalous"
+                    f"{confidence}."
+                )
+            elif anomaly_score is not None:
+                description = (
+                    f"Telemetry for metric '{telemetry.metric_name}' exceeded the anomaly "
+                    f"threshold with score {anomaly_score:.2f}."
+                )
+            else:
+                description = f"Telemetry anomaly detected for metric '{telemetry.metric_name}'."
 
     alert_payload = AlertCreate(
         device_id=telemetry.device_id,
@@ -132,7 +174,7 @@ def maybe_store_alert_for_telemetry(db: Session, telemetry: DeviceData) -> Alert
         description=description,
         severity=severity,
         status=AlertStatus.OPEN,
-        anomaly_score=anomaly_score,
+        anomaly_score=score_for_storage,
         triggered_at=telemetry.recorded_at,
     )
     return store_alert(db, alert_payload)

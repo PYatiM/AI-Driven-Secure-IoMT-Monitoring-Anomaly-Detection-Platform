@@ -1,4 +1,4 @@
-import math
+﻿import math
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
@@ -16,6 +16,7 @@ from backend.app.schemas.telemetry import (
 from backend.app.services.alerts import maybe_store_alert_for_telemetry
 from backend.app.services.anomaly_detection import infer_telemetry_record
 from backend.app.services.audit import set_audit_context
+from backend.app.services.intrusion_detection import detect_intrusion
 
 router = APIRouter(prefix="/telemetry", tags=["telemetry"])
 
@@ -40,21 +41,21 @@ def ingest_telemetry(
     current_device: Device = Depends(get_current_device),
     db: Session = Depends(get_db),
 ) -> TelemetryRead:
-    inference_result = infer_telemetry_record(
-        {
-            "device_id": current_device.id,
-            "device_identifier": current_device.device_identifier,
-            "device_type": current_device.device_type,
-            "location": current_device.location,
-            "recorded_at": payload.recorded_at,
-            "metric_name": payload.metric_name,
-            "metric_type": payload.metric_type,
-            "value_numeric": payload.value_numeric,
-            "value_text": payload.value_text,
-            "unit": payload.unit,
-            "payload": payload.payload or {},
-        }
-    )
+    telemetry_record = {
+        "device_id": current_device.id,
+        "device_identifier": current_device.device_identifier,
+        "device_type": current_device.device_type,
+        "location": current_device.location,
+        "recorded_at": payload.recorded_at,
+        "metric_name": payload.metric_name,
+        "metric_type": payload.metric_type,
+        "value_numeric": payload.value_numeric,
+        "value_text": payload.value_text,
+        "unit": payload.unit,
+        "payload": payload.payload or {},
+    }
+    inference_result = infer_telemetry_record(telemetry_record)
+    intrusion_result = detect_intrusion(telemetry_record, inference_result)
 
     telemetry = DeviceData(
         device_id=current_device.id,
@@ -69,6 +70,10 @@ def ingest_telemetry(
         anomaly_score=inference_result.anomaly_score if inference_result else None,
         confidence_score=inference_result.confidence_score if inference_result else None,
         model_name=inference_result.model_name if inference_result else None,
+        intrusion_flag=intrusion_result.intrusion_flag,
+        intrusion_score=intrusion_result.intrusion_score,
+        intrusion_type=intrusion_result.intrusion_type if intrusion_result.intrusion_flag else None,
+        intrusion_reason=intrusion_result.intrusion_reason if intrusion_result.intrusion_flag else None,
     )
     db.add(telemetry)
     db.flush()
@@ -83,6 +88,8 @@ def ingest_telemetry(
         details={
             "metric_name": telemetry.metric_name,
             "anomaly_flag": telemetry.anomaly_flag,
+            "intrusion_flag": telemetry.intrusion_flag,
+            "intrusion_type": telemetry.intrusion_type,
         },
     )
     return telemetry
@@ -161,3 +168,4 @@ def fetch_telemetry(
         start_time=normalized_start,
         end_time=normalized_end,
     )
+

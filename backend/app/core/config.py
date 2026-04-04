@@ -1,4 +1,4 @@
-from functools import lru_cache
+﻿from functools import lru_cache
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -53,6 +53,10 @@ class Settings(BaseSettings):
     ai_monitoring_metrics_path: str = Field(
         default="ai/monitoring/model_performance.json"
     )
+    intrusion_detection_enabled: bool = Field(default=True)
+    intrusion_score_threshold: float = Field(default=0.72, ge=0.0, le=1.0)
+    intrusion_anomaly_score_threshold: float = Field(default=0.65, ge=0.0, le=1.0)
+    intrusion_confidence_threshold: float = Field(default=0.7, ge=0.0, le=1.0)
 
     model_config = SettingsConfigDict(
         env_file=".env",
