@@ -76,6 +76,7 @@ class User(TimestampMixin, Base):
     devices: Mapped[list[Device]] = relationship(back_populates="owner")
     assigned_alerts: Mapped[list[Alert]] = relationship(back_populates="assigned_user")
     audit_logs: Mapped[list[AuditLog]] = relationship(back_populates="actor_user")
+    security_events: Mapped[list[SecurityEvent]] = relationship(back_populates="actor_user")
 
 
 class Device(TimestampMixin, Base):
@@ -124,6 +125,7 @@ class Device(TimestampMixin, Base):
     )
     alerts: Mapped[list[Alert]] = relationship(back_populates="device")
     audit_logs: Mapped[list[AuditLog]] = relationship(back_populates="actor_device")
+    security_events: Mapped[list[SecurityEvent]] = relationship(back_populates="actor_device")
 
 
 class DeviceData(TimestampMixin, Base):
@@ -267,3 +269,60 @@ class AuditLog(Base):
 
     actor_user: Mapped[User | None] = relationship(back_populates="audit_logs")
     actor_device: Mapped[Device | None] = relationship(back_populates="audit_logs")
+
+
+class SecurityEvent(Base):
+    __tablename__ = "security_events"
+    __table_args__ = (
+        Index("ix_security_events_occurred_at", "occurred_at"),
+        Index("ix_security_events_category_severity", "category", "severity"),
+        Index("ix_security_events_event_type_occurred_at", "event_type", "occurred_at"),
+        Index("ix_security_events_actor_user", "actor_user_id", "occurred_at"),
+        Index("ix_security_events_actor_device", "actor_device_id", "occurred_at"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    event_type: Mapped[str] = mapped_column(String(100), nullable=False)
+    category: Mapped[str] = mapped_column(String(50), nullable=False)
+    severity: Mapped[str] = mapped_column(
+        String(20),
+        nullable=False,
+        default="medium",
+        server_default=text("'medium'"),
+    )
+    outcome: Mapped[str] = mapped_column(
+        String(20),
+        nullable=False,
+        default="detected",
+        server_default=text("'detected'"),
+    )
+    actor_type: Mapped[str] = mapped_column(
+        String(20),
+        nullable=False,
+        default=AuditActorType.ANONYMOUS.value,
+        server_default=text("'anonymous'"),
+    )
+    actor_user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    actor_device_id: Mapped[int | None] = mapped_column(
+        ForeignKey("devices.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    http_method: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    path: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    resource_type: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    resource_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    ip_address: Mapped[str | None] = mapped_column(EncryptedTextType(), nullable=True)
+    user_agent: Mapped[str | None] = mapped_column(EncryptedTextType(), nullable=True)
+    description: Mapped[str | None] = mapped_column(EncryptedTextType(), nullable=True)
+    details: Mapped[dict | None] = mapped_column(EncryptedJSONType(), nullable=True)
+    occurred_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=text("CURRENT_TIMESTAMP"),
+    )
+
+    actor_user: Mapped[User | None] = relationship(back_populates="security_events")
+    actor_device: Mapped[Device | None] = relationship(back_populates="security_events")

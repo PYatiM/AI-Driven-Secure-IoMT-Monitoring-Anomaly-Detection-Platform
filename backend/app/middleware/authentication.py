@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import logging
 from typing import Literal
@@ -13,6 +13,12 @@ from backend.app.api.deps import (
     authenticate_user_bearer_token,
 )
 from backend.app.db.session import get_session_factory
+from backend.app.services.security_events import (
+    SecurityEventCategory,
+    SecurityEventOutcome,
+    SecurityEventSeverity,
+    log_security_event,
+)
 
 logger = logging.getLogger(__name__)
 AuthMode = Literal["user", "device"]
@@ -67,6 +73,34 @@ class AuthenticationMiddleware(BaseHTTPMiddleware):
                     request.headers.get("Authorization"),
                 )
         except AuthenticationError as error:
+            log_security_event(
+                request=request,
+                event_type=(
+                    "user.bearer_token_rejected"
+                    if auth_mode == "user"
+                    else "device.bearer_token_rejected"
+                ),
+                category=(
+                    SecurityEventCategory.AUTHENTICATION
+                    if error.status_code == 401
+                    else SecurityEventCategory.AUTHORIZATION
+                ),
+                severity=(
+                    SecurityEventSeverity.HIGH
+                    if error.status_code == 401
+                    else SecurityEventSeverity.MEDIUM
+                ),
+                outcome=(
+                    SecurityEventOutcome.FAILURE
+                    if error.status_code == 401
+                    else SecurityEventOutcome.BLOCKED
+                ),
+                description=error.detail,
+                details={
+                    "auth_mode": auth_mode,
+                    "status_code": error.status_code,
+                },
+            )
             return JSONResponse(
                 status_code=error.status_code,
                 content={"detail": error.detail},

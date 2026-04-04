@@ -12,6 +12,12 @@ from backend.app.schemas.users import UserRead
 from backend.app.security.auth import create_access_token, hash_password, verify_password
 from backend.app.security.key_storage import get_jwt_secret_key
 from backend.app.services.audit import set_audit_context
+from backend.app.services.security_events import (
+    SecurityEventCategory,
+    SecurityEventOutcome,
+    SecurityEventSeverity,
+    log_security_event,
+)
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -102,6 +108,15 @@ def login_user(
     email = _normalize_email(payload.email)
     user = db.scalar(select(User).where(User.email == email))
     if user is None or not verify_password(payload.password, user.password_hash):
+        log_security_event(
+            request=request,
+            event_type="user.login_failed",
+            category=SecurityEventCategory.AUTHENTICATION,
+            severity=SecurityEventSeverity.HIGH,
+            outcome=SecurityEventOutcome.FAILURE,
+            description="Login failed because the provided credentials were invalid.",
+            details={"email": email},
+        )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid email or password.",
@@ -109,6 +124,17 @@ def login_user(
         )
 
     if not user.is_active:
+        log_security_event(
+            request=request,
+            event_type="user.login_blocked_inactive",
+            category=SecurityEventCategory.AUTHORIZATION,
+            severity=SecurityEventSeverity.MEDIUM,
+            outcome=SecurityEventOutcome.BLOCKED,
+            description="Login blocked because the user account is inactive.",
+            details={"email": email, "user_id": user.id},
+            actor_type=AuditActorType.USER,
+            actor_user_id=user.id,
+        )
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="User account is inactive.",

@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     api_enforce_json_content_type: bool = Field(default=True)
     api_max_request_body_bytes: int = Field(default=1048576, ge=1)
     audit_logging_enabled: bool = Field(default=True)
+    security_event_logging_enabled: bool = Field(default=True)
     https_enforced: bool = Field(default=False)
     https_redirect_status_code: int = Field(default=307)
     https_hsts_enabled: bool = Field(default=True)

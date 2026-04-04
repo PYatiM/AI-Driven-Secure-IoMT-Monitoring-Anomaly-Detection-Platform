@@ -7,11 +7,17 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from backend.app.core.config import get_settings
-from backend.app.db.models import Device, DeviceStatus, User, UserRole
+from backend.app.db.models import AuditActorType, Device, DeviceStatus, User, UserRole
 from backend.app.db.session import get_db
 from backend.app.security.api_keys import build_api_key_lookup
 from backend.app.security.auth import decode_access_token, decode_device_access_token
 from backend.app.security.key_storage import get_device_token_secret_key, get_jwt_secret_key
+from backend.app.services.security_events import (
+    SecurityEventCategory,
+    SecurityEventOutcome,
+    SecurityEventSeverity,
+    log_security_event,
+)
 
 UNAUTHORIZED_DEVICE_API_KEY_MESSAGE = "Invalid or missing device API key."
 UNAUTHORIZED_DEVICE_TOKEN_MESSAGE = "Invalid or missing device bearer token."
@@ -191,6 +197,18 @@ def get_device_by_api_key(
     try:
         device = authenticate_device_api_key(db, x_api_key)
     except AuthenticationError as error:
+        log_security_event(
+            request=request,
+            event_type="device.api_key_rejected",
+            category=SecurityEventCategory.AUTHENTICATION,
+            severity=SecurityEventSeverity.HIGH,
+            outcome=SecurityEventOutcome.FAILURE,
+            description=error.detail,
+            details={
+                "mechanism": "api_key",
+                "status_code": error.status_code,
+            },
+        )
         _raise_http_exception(error)
 
     request.state.current_device = device
@@ -216,8 +234,25 @@ def get_current_user(
 
 
 def require_roles(*allowed_roles: UserRole):
-    def dependency(current_user: User = Depends(get_current_user)) -> User:
+    def dependency(
+        request: Request,
+        current_user: User = Depends(get_current_user),
+    ) -> User:
         if current_user.role not in allowed_roles:
+            log_security_event(
+                request=request,
+                event_type="authorization.role_denied",
+                category=SecurityEventCategory.AUTHORIZATION,
+                severity=SecurityEventSeverity.MEDIUM,
+                outcome=SecurityEventOutcome.BLOCKED,
+                description="User attempted an action without the required role.",
+                details={
+                    "current_role": current_user.role.value,
+                    "allowed_roles": [role.value for role in allowed_roles],
+                },
+                actor_type=AuditActorType.USER,
+                actor_user_id=current_user.id,
+            )
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="You do not have permission to perform this action.",

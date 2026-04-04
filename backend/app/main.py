@@ -46,6 +46,7 @@ async def lifespan(_: FastAPI):
         logger.info("Firewall default action: %s", settings.firewall_default_action)
     logger.info("API request validation enabled: %s", settings.api_validate_requests)
     logger.info("Audit logging enabled: %s", settings.audit_logging_enabled)
+    logger.info("Security event logging enabled: %s", settings.security_event_logging_enabled)
     logger.info("Secure key storage enabled: %s", key_storage_status.enabled)
     if key_storage_status.enabled:
         logger.info("Secure key storage configured: %s", key_storage_status.configured)

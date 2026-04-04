@@ -12,6 +12,12 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse, Response
 
 from backend.app.services.audit import resolve_client_ip, set_audit_context
+from backend.app.services.security_events import (
+    SecurityEventCategory,
+    SecurityEventOutcome,
+    SecurityEventSeverity,
+    log_security_event,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -180,6 +186,20 @@ class FirewallMiddleware(BaseHTTPMiddleware):
         )
 
         if self.mode == "simulate":
+            log_security_event(
+                request=request,
+                event_type="firewall.rule_simulated",
+                category=SecurityEventCategory.FIREWALL,
+                severity=SecurityEventSeverity.MEDIUM,
+                outcome=SecurityEventOutcome.SIMULATED,
+                description="Firewall simulation matched a deny rule.",
+                details={
+                    "firewall_rule": decision.rule_name,
+                    "firewall_description": decision.description,
+                    "client_ip": decision.client_ip,
+                },
+                resource_type="network",
+            )
             logger.warning(
                 "Firewall simulation matched deny rule '%s' for %s %s from %s",
                 decision.rule_name,
@@ -202,6 +222,20 @@ class FirewallMiddleware(BaseHTTPMiddleware):
         set_audit_context(
             request,
             action="firewall.block",
+            resource_type="network",
+        )
+        log_security_event(
+            request=request,
+            event_type="firewall.rule_blocked",
+            category=SecurityEventCategory.FIREWALL,
+            severity=SecurityEventSeverity.HIGH,
+            outcome=SecurityEventOutcome.BLOCKED,
+            description="Firewall blocked a request because a deny rule matched.",
+            details={
+                "firewall_rule": decision.rule_name,
+                "firewall_description": decision.description,
+                "client_ip": decision.client_ip,
+            },
             resource_type="network",
         )
         return JSONResponse(

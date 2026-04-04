@@ -6,7 +6,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from backend.app.api.deps import get_current_device
-from backend.app.db.models import Device, DeviceData
+from backend.app.db.models import AuditActorType, Device, DeviceData
 from backend.app.db.session import get_db
 from backend.app.schemas.telemetry import (
     TelemetryIngestRequest,
@@ -17,6 +17,12 @@ from backend.app.services.alerts import maybe_store_alert_for_telemetry
 from backend.app.services.anomaly_detection import infer_telemetry_record
 from backend.app.services.audit import set_audit_context
 from backend.app.services.intrusion_detection import detect_intrusion
+from backend.app.services.security_events import (
+    SecurityEventCategory,
+    SecurityEventOutcome,
+    SecurityEventSeverity,
+    log_security_event,
+)
 
 router = APIRouter(prefix="/telemetry", tags=["telemetry"])
 
@@ -27,6 +33,16 @@ def _normalize_datetime(value: datetime | None) -> datetime | None:
     if value.tzinfo is None:
         return value.replace(tzinfo=timezone.utc)
     return value.astimezone(timezone.utc)
+
+
+def _intrusion_severity(score: float | None) -> SecurityEventSeverity:
+    if score is None:
+        return SecurityEventSeverity.HIGH
+    if score >= 0.9:
+        return SecurityEventSeverity.CRITICAL
+    if score >= 0.75:
+        return SecurityEventSeverity.HIGH
+    return SecurityEventSeverity.MEDIUM
 
 
 @router.post(
@@ -80,6 +96,31 @@ def ingest_telemetry(
     maybe_store_alert_for_telemetry(db, telemetry)
     db.commit()
     db.refresh(telemetry)
+
+    if telemetry.intrusion_flag:
+        log_security_event(
+            request=request,
+            event_type="intrusion.detected",
+            category=SecurityEventCategory.INTRUSION_DETECTION,
+            severity=_intrusion_severity(telemetry.intrusion_score),
+            outcome=SecurityEventOutcome.DETECTED,
+            description=(
+                telemetry.intrusion_reason
+                or f"Potential intrusion detected for metric '{telemetry.metric_name}'."
+            ),
+            details={
+                "metric_name": telemetry.metric_name,
+                "intrusion_type": telemetry.intrusion_type,
+                "intrusion_score": telemetry.intrusion_score,
+                "anomaly_flag": telemetry.anomaly_flag,
+                "device_identifier": current_device.device_identifier,
+            },
+            actor_type=AuditActorType.DEVICE,
+            actor_device_id=current_device.id,
+            resource_type="telemetry",
+            resource_id=telemetry.id,
+        )
+
     set_audit_context(
         request,
         action="telemetry.ingest",
@@ -168,4 +209,3 @@ def fetch_telemetry(
         start_time=normalized_start,
         end_time=normalized_end,
     )
-
