@@ -25,6 +25,10 @@ class Settings(BaseSettings):
     https_hsts_max_age: int = Field(default=31536000, ge=0)
     https_hsts_include_subdomains: bool = Field(default=True)
     https_hsts_preload: bool = Field(default=False)
+    firewall_enabled: bool = Field(default=True)
+    firewall_mode: str = Field(default="simulate")
+    firewall_config_path: str = Field(default="infra/firewall/rules.json")
+    firewall_default_action: str = Field(default="allow")
 
     db_host: str = Field(default="localhost")
     db_port: int = Field(default=5432, ge=1, le=65535)

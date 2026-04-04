@@ -1,0 +1,67 @@
+﻿{
+  "default_action": "allow",
+  "rules": [
+    {
+      "name": "allow-local-development",
+      "enabled": true,
+      "action": "allow",
+      "ip_cidrs": [
+        "127.0.0.1/32",
+        "::1/128"
+      ],
+      "description": "Allow loopback traffic for local development and health checks."
+    },
+    {
+      "name": "allow-trusted-private-networks",
+      "enabled": true,
+      "action": "allow",
+      "ip_cidrs": [
+        "10.0.0.0/8",
+        "172.16.0.0/12",
+        "192.168.0.0/16",
+        "fc00::/7"
+      ],
+      "path_prefixes": [
+        "/api/v1/devices",
+        "/api/v1/users"
+      ],
+      "description": "Permit sensitive device and user operations from private network ranges."
+    },
+    {
+      "name": "deny-untrusted-admin-write-operations",
+      "enabled": true,
+      "action": "deny",
+      "methods": [
+        "POST",
+        "PUT",
+        "PATCH",
+        "DELETE"
+      ],
+      "path_prefixes": [
+        "/api/v1/users",
+        "/api/v1/devices/register"
+      ],
+      "ip_cidrs": [
+        "0.0.0.0/0",
+        "::/0"
+      ],
+      "description": "Block administrative mutations unless an earlier trusted-network allow rule matched."
+    },
+    {
+      "name": "deny-untrusted-device-token-exchange",
+      "enabled": true,
+      "action": "deny",
+      "methods": [
+        "POST"
+      ],
+      "path_prefixes": [
+        "/api/v1/devices/token"
+      ],
+      "ip_cidrs": [
+        "0.0.0.0/0",
+        "::/0"
+      ],
+      "description": "Restrict device token exchange to explicitly allowed network ranges."
+    }
+  ]
+}

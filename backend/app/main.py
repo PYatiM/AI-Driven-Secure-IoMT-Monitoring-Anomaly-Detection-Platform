@@ -12,6 +12,7 @@ from backend.app.core.logging import configure_logging
 from backend.app.middleware import (
     AuditLoggingMiddleware,
     AuthenticationMiddleware,
+    FirewallMiddleware,
     HTTPSMiddleware,
     RequestValidationMiddleware,
 )
@@ -38,6 +39,11 @@ async def lifespan(_: FastAPI):
         settings.db_name,
     )
     logger.info("HTTPS enforcement enabled: %s", settings.https_enforced)
+    logger.info("Firewall enabled: %s", settings.firewall_enabled)
+    if settings.firewall_enabled:
+        logger.info("Firewall mode: %s", settings.firewall_mode)
+        logger.info("Firewall config path: %s", settings.firewall_config_path)
+        logger.info("Firewall default action: %s", settings.firewall_default_action)
     logger.info("API request validation enabled: %s", settings.api_validate_requests)
     logger.info("Audit logging enabled: %s", settings.audit_logging_enabled)
     logger.info("Secure key storage enabled: %s", key_storage_status.enabled)
@@ -94,6 +100,13 @@ def create_app() -> FastAPI:
     application.add_middleware(
         AuthenticationMiddleware,
         api_prefix=settings.api_v1_prefix,
+    )
+    application.add_middleware(
+        FirewallMiddleware,
+        enabled=settings.firewall_enabled,
+        mode=settings.firewall_mode,
+        config_path=settings.firewall_config_path,
+        default_action=settings.firewall_default_action,
     )
     application.add_middleware(
         HTTPSMiddleware,
