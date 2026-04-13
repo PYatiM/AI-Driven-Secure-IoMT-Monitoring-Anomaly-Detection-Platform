@@ -1,49 +1,76 @@
-import { useState, useContext } from "react";
-import { AuthContext } from "../context/AuthContext";
-import API from "../services/api";
+import { useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
+
+import { useAuth } from "../context/useAuth";
 
 const Login = () => {
-  const { login } = useContext(AuthContext);
+  const { login } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const redirectTo = location.state?.from || "/dashboard";
 
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const [email, setEmail] = useState("admin@hospital.local");
+  const [password, setPassword] = useState("admin12345");
+  const [error, setError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleLogin = async (e) => {
-    e.preventDefault();
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    setError("");
+    setIsSubmitting(true);
 
     try {
-      const res = await API.post("/login", { email, password });
-
-      login(res.data.access_token);
-      window.location.href = "/dashboard";
-    } catch (err) {
-      alert("Login failed");
+      await login({ email, password });
+      navigate(redirectTo, { replace: true });
+    } catch (requestError) {
+      const detail = requestError.response?.data?.detail;
+      setError(typeof detail === "string" ? detail : "Login failed. Verify your credentials.");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   return (
-    <div style={{ padding: "2rem" }}>
-      <h2>IoMT Platform Login</h2>
+    <div className="login-page">
+      <div className="login-card">
+        <p className="eyebrow">Secure Access</p>
+        <h1>IoMT Monitoring Console</h1>
+        <p className="subtext">
+          Authenticate with your platform account to access anomaly analytics and incident response tools.
+        </p>
 
-      <form onSubmit={handleLogin}>
-        <input
-          type="email"
-          placeholder="Email"
-          onChange={(e) => setEmail(e.target.value)}
-        />
-        <br />
+        <form onSubmit={handleSubmit} className="login-form">
+          <label htmlFor="email">Email</label>
+          <input
+            id="email"
+            type="email"
+            autoComplete="username"
+            value={email}
+            onChange={(event) => setEmail(event.target.value)}
+            required
+          />
 
-        <input
-          type="password"
-          placeholder="Password"
-          onChange={(e) => setPassword(e.target.value)}
-        />
-        <br />
+          <label htmlFor="password">Password</label>
+          <input
+            id="password"
+            type="password"
+            autoComplete="current-password"
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+            minLength={8}
+            required
+          />
 
-        <button type="submit">Login</button>
-      </form>
+          {error ? <p className="error-message">{error}</p> : null}
+
+          <button type="submit" disabled={isSubmitting}>
+            {isSubmitting ? "Signing in..." : "Sign in"}
+          </button>
+        </form>
+      </div>
     </div>
   );
 };
 
 export default Login;
+
