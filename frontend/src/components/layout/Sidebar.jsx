@@ -1,9 +1,11 @@
-const Sidebar = () => {
+import { NavLink } from "react-router-dom";
+
+const Sidebar = ({ devicesCount }) => {
   const links = [
-    { label: "Dashboard", badge: "Live" },
-    { label: "Devices", badge: "128" },
-    { label: "Alerts", badge: "12" },
-    { label: "Threat Intel", badge: "New" },
+    { label: "Dashboard", to: "/dashboard", badge: "Live" },
+    { label: "Devices", to: "/dashboard#devices", badge: String(devicesCount ?? 0) },
+    { label: "Alerts", to: "/dashboard#alerts", badge: "Feed" },
+    { label: "Threat Intel", to: "/dashboard#intel", badge: "AI" },
   ];
 
   return (
@@ -15,10 +17,15 @@ const Sidebar = () => {
 
       <nav>
         <ul className="sidebar-links">
-          {links.map((item, index) => (
-            <li key={item.label} className={index === 0 ? "active" : ""}>
-              <span>{item.label}</span>
-              <strong>{item.badge}</strong>
+          {links.map((item) => (
+            <li key={item.label}>
+              <NavLink
+                to={item.to}
+                className={({ isActive }) => (isActive ? "nav-link active" : "nav-link")}
+              >
+                <span>{item.label}</span>
+                <strong>{item.badge}</strong>
+              </NavLink>
             </li>
           ))}
         </ul>

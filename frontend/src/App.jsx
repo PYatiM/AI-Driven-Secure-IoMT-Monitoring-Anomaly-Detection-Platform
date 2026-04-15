@@ -3,6 +3,7 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import ProtectedRoute from "./components/layout/ProtectedRoute";
 import { useAuth } from "./context/useAuth";
 import Dashboard from "./pages/Dashboard";
+import DeviceDetail from "./pages/DeviceDetail";
 import Login from "./pages/Login";
 import "./App.css";
 
@@ -35,6 +36,14 @@ function App() {
         element={
           <ProtectedRoute>
             <Dashboard />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/devices/:deviceId"
+        element={
+          <ProtectedRoute>
+            <DeviceDetail />
           </ProtectedRoute>
         }
       />
