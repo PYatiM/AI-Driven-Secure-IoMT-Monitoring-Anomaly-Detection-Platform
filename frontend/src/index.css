@@ -1,17 +1,55 @@
 :root {
-  --bg: #0a1018;
-  --bg-elevated: #121f2f;
-  --bg-panel: #13263a;
-  --text: #f4f9ff;
-  --muted: #97abc3;
-  --accent: #20d0b0;
-  --accent-2: #49a7ff;
-  --danger: #ff665a;
-  --warning: #ffb65a;
   --radius-lg: 22px;
   --radius-md: 14px;
   --radius-sm: 10px;
-  --shadow-lg: 0 30px 60px rgba(0, 0, 0, 0.35);
+  --shadow-lg: 0 24px 55px rgba(4, 12, 20, 0.38);
+  --shadow-md: 0 14px 28px rgba(4, 12, 20, 0.25);
+}
+
+:root[data-theme="dark"] {
+  --surface-sidebar: #0c1724;
+  --surface-elevated: #102033;
+  --surface-panel: #0b1a2a;
+  --surface-selected: rgba(92, 174, 255, 0.18);
+  --bg-base: #081018;
+  --bg-accent-top: #16314f;
+  --bg-accent-bottom: #12353d;
+  --text-primary: #f4f8fd;
+  --text-secondary: #dbe6f4;
+  --text-muted: #9bb0c8;
+  --border-soft: rgba(137, 175, 209, 0.25);
+  --focus-ring: rgba(89, 174, 255, 0.65);
+  --accent: #24cfb2;
+  --accent-alt: #4da8ff;
+  --success: #69e8c6;
+  --warning: #ffc06f;
+  --danger: #ff8f86;
+  --info: #95cbff;
+  --chart-line: #66cbff;
+  --button-text: #06293f;
+}
+
+:root[data-theme="light"] {
+  --surface-sidebar: #e7f0fb;
+  --surface-elevated: #f8fbff;
+  --surface-panel: #eef4fc;
+  --surface-selected: rgba(60, 139, 233, 0.16);
+  --bg-base: #dce8f6;
+  --bg-accent-top: #f8fcff;
+  --bg-accent-bottom: #d9e8f8;
+  --text-primary: #11253b;
+  --text-secondary: #203853;
+  --text-muted: #4d6482;
+  --border-soft: rgba(29, 68, 108, 0.24);
+  --focus-ring: rgba(40, 110, 191, 0.58);
+  --accent: #008f78;
+  --accent-alt: #1e78d6;
+  --success: #0d9b72;
+  --warning: #d1831c;
+  --danger: #d24637;
+  --info: #2173ca;
+  --chart-line: #2173ca;
+  --button-text: #ecf7ff;
 }
 
 * {
@@ -21,33 +59,32 @@
 html,
 body,
 #root {
-  margin: 0;
-  min-height: 100%;
   width: 100%;
+  min-height: 100%;
+  margin: 0;
 }
 
 body {
   font-family: "IBM Plex Sans", "Segoe UI", "Trebuchet MS", sans-serif;
-  color: var(--text);
+  color: var(--text-primary);
   background:
-    radial-gradient(circle at 0% 0%, #1a3049, transparent 40%),
-    radial-gradient(circle at 100% 100%, #1d3a43, transparent 35%),
-    var(--bg);
+    radial-gradient(circle at top left, var(--bg-accent-top), transparent 46%),
+    radial-gradient(circle at bottom right, var(--bg-accent-bottom), transparent 45%),
+    var(--bg-base);
 }
 
 h1,
 h2,
 h3,
 h4,
+h5,
 p {
   margin: 0;
 }
 
-a {
-  color: inherit;
-}
-
 button,
-input {
+input,
+select {
   font: inherit;
 }
+
