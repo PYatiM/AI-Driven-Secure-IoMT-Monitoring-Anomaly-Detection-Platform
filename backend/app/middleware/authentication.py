@@ -42,7 +42,10 @@ class AuthenticationMiddleware(BaseHTTPMiddleware):
             f"{normalized_prefix}/auth/me",
             f"{normalized_prefix}/devices/register",
         }
-        self.user_prefixes = (f"{normalized_prefix}/users",)
+        self.user_prefixes = (
+            f"{normalized_prefix}/users",
+            f"{normalized_prefix}/monitoring",
+        )
         self.device_exact_paths = {f"{normalized_prefix}/devices/me"}
         self.device_prefixes = (
             f"{normalized_prefix}/alerts",
