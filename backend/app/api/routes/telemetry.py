@@ -6,12 +6,16 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from backend.app.api.deps import get_current_device
+from backend.app.core.config import get_settings
 from backend.app.db.models import AuditActorType, Device, DeviceData
 from backend.app.db.session import get_db
 from backend.app.schemas.telemetry import (
+    TelemetryBatchIngestRequest,
+    TelemetryBatchIngestResponse,
     TelemetryIngestRequest,
     TelemetryPage,
     TelemetryRead,
+    TelemetryStreamIngestResponse,
 )
 from backend.app.services.alerts import maybe_store_alert_for_telemetry
 from backend.app.services.anomaly_detection import infer_telemetry_record
@@ -22,6 +26,11 @@ from backend.app.services.security_events import (
     SecurityEventOutcome,
     SecurityEventSeverity,
     log_security_event,
+)
+from backend.app.services.telemetry_stream import (
+    DeviceStreamContext,
+    QueuedTelemetryRecord,
+    get_telemetry_stream_service,
 )
 
 router = APIRouter(prefix="/telemetry", tags=["telemetry"])
@@ -45,18 +54,7 @@ def _intrusion_severity(score: float | None) -> SecurityEventSeverity:
     return SecurityEventSeverity.MEDIUM
 
 
-@router.post(
-    "",
-    response_model=TelemetryRead,
-    status_code=status.HTTP_201_CREATED,
-    summary="Ingest telemetry data from an authenticated device",
-)
-def ingest_telemetry(
-    request: Request,
-    payload: TelemetryIngestRequest,
-    current_device: Device = Depends(get_current_device),
-    db: Session = Depends(get_db),
-) -> TelemetryRead:
+def _build_telemetry_entity(current_device: Device, payload: TelemetryIngestRequest) -> DeviceData:
     telemetry_record = {
         "device_id": current_device.id,
         "device_identifier": current_device.device_identifier,
@@ -73,7 +71,7 @@ def ingest_telemetry(
     inference_result = infer_telemetry_record(telemetry_record)
     intrusion_result = detect_intrusion(telemetry_record, inference_result)
 
-    telemetry = DeviceData(
+    return DeviceData(
         device_id=current_device.id,
         recorded_at=payload.recorded_at,
         metric_name=payload.metric_name,
@@ -91,15 +89,39 @@ def ingest_telemetry(
         intrusion_type=intrusion_result.intrusion_type if intrusion_result.intrusion_flag else None,
         intrusion_reason=intrusion_result.intrusion_reason if intrusion_result.intrusion_flag else None,
     )
+
+
+def _persist_telemetry_record(
+    db: Session,
+    current_device: Device,
+    payload: TelemetryIngestRequest,
+) -> tuple[DeviceData, object | None]:
+    telemetry = _build_telemetry_entity(current_device, payload)
     db.add(telemetry)
     db.flush()
     alert = maybe_store_alert_for_telemetry(db, telemetry)
+    return telemetry, alert
+
+
+@router.post(
+    "",
+    response_model=TelemetryRead,
+    status_code=status.HTTP_201_CREATED,
+    summary="Ingest telemetry data from an authenticated device",
+)
+def ingest_telemetry(
+    request: Request,
+    payload: TelemetryIngestRequest,
+    current_device: Device = Depends(get_current_device),
+    db: Session = Depends(get_db),
+) -> TelemetryRead:
+    telemetry, alert = _persist_telemetry_record(db, current_device, payload)
     db.commit()
     db.refresh(telemetry)
     if alert is not None:
         db.refresh(alert)
 
-    if alert is not None and alert.escalated:
+    if alert is not None and getattr(alert, "escalated", False):
         log_security_event(
             request=request,
             event_type="alert.escalated",
@@ -166,6 +188,129 @@ def ingest_telemetry(
         },
     )
     return telemetry
+
+
+@router.post(
+    "/batch",
+    response_model=TelemetryBatchIngestResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Ingest telemetry data in batches for higher throughput",
+)
+def ingest_telemetry_batch(
+    request: Request,
+    payload: TelemetryBatchIngestRequest,
+    current_device: Device = Depends(get_current_device),
+    db: Session = Depends(get_db),
+) -> TelemetryBatchIngestResponse:
+    settings = get_settings()
+    if len(payload.items) > settings.telemetry_batch_max_records:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                f"Batch size exceeds TELEMETRY_BATCH_MAX_RECORDS "
+                f"({settings.telemetry_batch_max_records})."
+            ),
+        )
+
+    anomaly_items = 0
+    intrusion_items = 0
+    alerts_created = 0
+
+    for item in payload.items:
+        telemetry, alert = _persist_telemetry_record(db, current_device, item)
+        if telemetry.anomaly_flag:
+            anomaly_items += 1
+        if telemetry.intrusion_flag:
+            intrusion_items += 1
+        if alert is not None:
+            alerts_created += 1
+
+    db.commit()
+
+    set_audit_context(
+        request,
+        action="telemetry.batch_ingest",
+        resource_type="telemetry",
+        details={
+            "items": len(payload.items),
+            "anomaly_items": anomaly_items,
+            "intrusion_items": intrusion_items,
+            "alerts_created": alerts_created,
+        },
+    )
+    return TelemetryBatchIngestResponse(
+        ingested_items=len(payload.items),
+        anomaly_items=anomaly_items,
+        intrusion_items=intrusion_items,
+        alerts_created=alerts_created,
+    )
+
+
+@router.post(
+    "/stream",
+    response_model=TelemetryStreamIngestResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="Queue telemetry records for streaming ingestion",
+)
+async def stream_telemetry_ingest(
+    request: Request,
+    payload: TelemetryBatchIngestRequest,
+    current_device: Device = Depends(get_current_device),
+) -> TelemetryStreamIngestResponse:
+    settings = get_settings()
+    if not settings.telemetry_queue_enabled:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Telemetry queue ingestion is disabled.",
+        )
+
+    if len(payload.items) > settings.telemetry_batch_max_records:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                f"Batch size exceeds TELEMETRY_BATCH_MAX_RECORDS "
+                f"({settings.telemetry_batch_max_records})."
+            ),
+        )
+
+    stream_service = get_telemetry_stream_service()
+    if not stream_service.is_running:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Telemetry queue worker is not running.",
+        )
+
+    device_context = DeviceStreamContext(
+        id=current_device.id,
+        device_identifier=current_device.device_identifier,
+        device_type=current_device.device_type,
+        location=current_device.location,
+    )
+    records = [
+        QueuedTelemetryRecord(device=device_context, payload=item)
+        for item in payload.items
+    ]
+
+    queued_items, queue_depth = await stream_service.enqueue(records)
+    if queued_items == 0:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Telemetry queue is full; try again shortly.",
+        )
+
+    set_audit_context(
+        request,
+        action="telemetry.stream_enqueue",
+        resource_type="telemetry",
+        details={
+            "queued_items": queued_items,
+            "queue_depth": queue_depth,
+        },
+    )
+    return TelemetryStreamIngestResponse(
+        queued_items=queued_items,
+        queue_depth=queue_depth,
+    )
 
 
 @router.get(
@@ -241,3 +386,4 @@ def fetch_telemetry(
         start_time=normalized_start,
         end_time=normalized_end,
     )
+
