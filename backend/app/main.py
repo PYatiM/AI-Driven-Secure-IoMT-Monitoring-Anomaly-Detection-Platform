@@ -17,6 +17,7 @@ from backend.app.middleware import (
     RequestValidationMiddleware,
 )
 from backend.app.security.key_storage import get_key_storage_status
+from backend.app.services.telemetry_stream import get_telemetry_stream_service
 
 settings = get_settings()
 configure_logging(settings.log_level)
@@ -27,6 +28,7 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     key_storage_status = get_key_storage_status()
+    telemetry_stream_service = get_telemetry_stream_service()
     logger.info(
         "Starting %s in %s mode",
         settings.app_name,
@@ -45,6 +47,17 @@ async def lifespan(_: FastAPI):
         logger.info("Firewall config path: %s", settings.firewall_config_path)
         logger.info("Firewall default action: %s", settings.firewall_default_action)
     logger.info("API request validation enabled: %s", settings.api_validate_requests)
+    logger.info("Telemetry queue enabled: %s", settings.telemetry_queue_enabled)
+    if settings.telemetry_queue_enabled:
+        logger.info(
+            "Telemetry queue batch size: %s (flush interval: %sms)",
+            settings.telemetry_queue_batch_size,
+            settings.telemetry_queue_flush_interval_ms,
+        )
+        await telemetry_stream_service.start(
+            batch_size=settings.telemetry_queue_batch_size,
+            flush_interval_seconds=settings.telemetry_queue_flush_interval_ms / 1000.0,
+        )
     logger.info("Audit logging enabled: %s", settings.audit_logging_enabled)
     logger.info("Security event logging enabled: %s", settings.security_event_logging_enabled)
     logger.info("Alert escalation enabled: %s", settings.alert_escalation_enabled)
@@ -59,6 +72,8 @@ async def lifespan(_: FastAPI):
             key_storage_status.env_fallback_enabled,
         )
     yield
+    if settings.telemetry_queue_enabled:
+        await telemetry_stream_service.stop()
     logger.info("Shutting down %s", settings.app_name)
 
 
