@@ -95,3 +95,19 @@ class TelemetryPage(BaseModel):
     device_id: int
     start_time: datetime | None
     end_time: datetime | None
+
+
+class TelemetryBatchIngestRequest(BaseModel):
+    items: list[TelemetryIngestRequest] = Field(..., min_length=1, max_length=10000)
+
+
+class TelemetryBatchIngestResponse(BaseModel):
+    ingested_items: int
+    anomaly_items: int
+    intrusion_items: int
+    alerts_created: int
+
+
+class TelemetryStreamIngestResponse(BaseModel):
+    queued_items: int
+    queue_depth: int
