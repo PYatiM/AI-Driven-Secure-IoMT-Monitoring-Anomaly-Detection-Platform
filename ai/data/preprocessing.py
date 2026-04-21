@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -36,12 +37,27 @@ class DataPreprocessor:
         normalized = normalized.replace(" ", "_").replace("-", "_")
         return normalized
 
+    @staticmethod
+    def _to_hashable_value(value):
+        if isinstance(value, dict):
+            return json.dumps(value, sort_keys=True, default=str)
+        if isinstance(value, (list, tuple, set)):
+            return json.dumps(list(value), default=str)
+        return value
+
     def clean_dataframe(self, dataframe: pd.DataFrame) -> pd.DataFrame:
         frame = dataframe.copy()
         frame.columns = [self.normalize_column_name(column) for column in frame.columns]
 
         if self.drop_duplicates:
-            frame = frame.drop_duplicates().reset_index(drop=True)
+            try:
+                frame = frame.drop_duplicates().reset_index(drop=True)
+            except TypeError:
+                hashable_frame = frame.apply(
+                    lambda column: column.map(self._to_hashable_value)
+                )
+                deduplicated_index = hashable_frame.drop_duplicates().index
+                frame = frame.loc[deduplicated_index].reset_index(drop=True)
 
         frame = frame.replace([np.inf, -np.inf], np.nan)
 
