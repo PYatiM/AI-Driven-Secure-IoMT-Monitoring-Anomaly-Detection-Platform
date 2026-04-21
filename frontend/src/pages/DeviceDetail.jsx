@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, lazy, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 
-import TelemetryChart from "../components/charts/TelemetryChart";
 import { useNotifications } from "../context/useNotifications";
 import { getDeviceDetail } from "../services/monitoringApi";
+
+const TelemetryChart = lazy(() => import("../components/charts/TelemetryChart"));
 
 const formatChartData = (telemetryItems) =>
   telemetryItems
@@ -98,7 +99,7 @@ const DeviceDetail = () => {
           <p className="eyebrow">Device Intelligence</p>
           <h1>{detail.device.name}</h1>
           <small>
-            {detail.device.device_identifier} · {detail.device.device_type}
+            {detail.device.device_identifier} - {detail.device.device_type}
           </small>
         </div>
         <Link className="ghost-btn inline-btn" to="/dashboard">
@@ -133,11 +134,22 @@ const DeviceDetail = () => {
           </div>
         </article>
 
-        <TelemetryChart
-          data={chartData}
-          title="Telemetry timeline"
-          metricName={chartData.at(-1)?.metric}
-        />
+        <Suspense
+          fallback={
+            <article className="panel chart-panel">
+              <div className="panel-header">
+                <h3>Telemetry timeline</h3>
+                <p>Loading chart module...</p>
+              </div>
+            </article>
+          }
+        >
+          <TelemetryChart
+            data={chartData}
+            title="Telemetry timeline"
+            metricName={chartData.at(-1)?.metric}
+          />
+        </Suspense>
       </div>
 
       <article className="panel">

@@ -1,7 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, lazy, useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
-import TelemetryChart from "../components/charts/TelemetryChart";
 import Navbar from "../components/layout/Navbar";
 import Sidebar from "../components/layout/Sidebar";
 import { useNotifications } from "../context/useNotifications";
@@ -13,6 +12,8 @@ import {
   listAlerts,
   listDevices,
 } from "../services/monitoringApi";
+
+const TelemetryChart = lazy(() => import("../components/charts/TelemetryChart"));
 
 const DEFAULT_ALERT_FILTERS = {
   severity: "",
@@ -282,11 +283,22 @@ const Dashboard = () => {
             </div>
           </article>
 
-          <TelemetryChart
-            data={chartData}
-            title="Real-time telemetry graph"
-            metricName={chartData.at(-1)?.metric}
-          />
+          <Suspense
+            fallback={
+              <article className="panel chart-panel">
+                <div className="panel-header">
+                  <h3>Real-time telemetry graph</h3>
+                  <p>Loading chart module...</p>
+                </div>
+              </article>
+            }
+          >
+            <TelemetryChart
+              data={chartData}
+              title="Real-time telemetry graph"
+              metricName={chartData.at(-1)?.metric}
+            />
+          </Suspense>
         </section>
 
         <article className="panel" id="alerts">
