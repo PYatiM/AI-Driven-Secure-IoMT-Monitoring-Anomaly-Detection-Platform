@@ -109,3 +109,95 @@ The repository has moved beyond initialization and now includes a working backen
 - an AI pipeline covering preprocessing, feature extraction, model training, persisted artifacts, live inference, model version tracking, prediction logging, and runtime performance monitoring
 
 The platform is still an early-stage implementation rather than a finished product, but it is no longer documentation-only. The current codebase provides an executable base for iterating on detection quality, operational workflows, and frontend/dashboard capabilities.
+
+## Testing
+
+Run the backend API unit tests:
+
+```bash
+pytest tests/backend/test_api_unit.py
+```
+
+Run AI training and inference integration tests:
+
+```bash
+pytest tests/ai/test_ai_pipeline_integration.py
+```
+
+Run the complete test suite:
+
+```bash
+pytest
+```
+
+## Load Testing
+
+The repository includes two options for ingestion load testing.
+
+1. Multi-device simulation with anomaly injection:
+
+```bash
+python backend/scripts/iomt_device_simulator.py \
+  --base-url http://127.0.0.1:8000 \
+  --auth-email admin@example.com \
+  --auth-password StrongPass123! \
+  --device-count 25 \
+  --duration-seconds 120 \
+  --ingest-mode batch
+```
+
+2. Focused API stress testing for a single authenticated device:
+
+```bash
+python backend/scripts/load_test.py \
+  --base-url http://127.0.0.1:8000 \
+  --mode batch \
+  --batch-size 100 \
+  --concurrency 20 \
+  --duration-seconds 90 \
+  --api-key <device-api-key>
+```
+
+## Demo Setup
+
+For a full-stack local demo:
+
+1. Prepare environment:
+
+```bash
+python -m venv .venv
+.venv\Scripts\activate
+pip install -r requirements.txt
+cp .env.example .env
+```
+
+2. Start the backend API:
+
+```bash
+uvicorn backend.app.main:app --host 0.0.0.0 --port 8000 --reload
+```
+
+3. Start the frontend app (separate terminal):
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+4. Optional full infrastructure demo with containers:
+
+```bash
+cp .env.production.example .env.production
+docker compose up --build
+```
+
+This boots PostgreSQL, backend, frontend, Nginx, Prometheus, and Grafana.
+
+## Recent Stability and Performance Enhancements
+
+- Improved SQLite compatibility for local testing by adding safe engine settings.
+- Reduced telemetry batch ingestion overhead by flushing telemetry rows in grouped batches.
+- Applied the same batch-flush strategy to streaming ingestion worker processing.
+- Reduced Prometheus route-label cardinality by preferring route templates over raw paths.
+- Hardened model prediction/performance file logging with thread-safe writes.
