@@ -1,8 +1,9 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
-from dataclasses import asdict, is_dataclass
-from datetime import date, datetime
 import json
+import threading
+from dataclasses import asdict, is_dataclass
+from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -11,6 +12,7 @@ class PredictionLogger:
     def __init__(self, path: str | Path) -> None:
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
+        self._lock = threading.Lock()
 
     def _serialize(self, value: Any) -> Any:
         if isinstance(value, (datetime, date)):
@@ -25,9 +27,10 @@ class PredictionLogger:
 
     def log(self, input_record: dict, prediction_result: Any) -> None:
         payload = {
-            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "input": self._serialize(input_record),
             "prediction": self._serialize(prediction_result),
         }
-        with self.path.open("a", encoding="utf-8") as handle:
-            handle.write(json.dumps(payload) + "\n")
+        with self._lock:
+            with self.path.open("a", encoding="utf-8") as handle:
+                handle.write(json.dumps(payload) + "\n")
