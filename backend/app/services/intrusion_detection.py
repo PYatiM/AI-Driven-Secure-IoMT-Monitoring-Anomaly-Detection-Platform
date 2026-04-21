@@ -242,7 +242,10 @@ def detect_intrusion(
             category = EXPLICIT_INTRUSION_SIGNAL_KEYS.get(key_name)
             if category and value:
                 explicit_intrusion = True
-                category_scores[category] = max(category_scores[category], 0.45)
+                if category in category_scores:
+                    category_scores[category] = max(category_scores[category], 0.45)
+                elif payload_intrusion_type is None:
+                    payload_intrusion_type = category
                 indicator_reasons.append(f"{path} explicitly reported a security incident.")
         elif isinstance(value, (int, float)) and not isinstance(value, bool):
             numeric_entries.append((path, float(value)))
