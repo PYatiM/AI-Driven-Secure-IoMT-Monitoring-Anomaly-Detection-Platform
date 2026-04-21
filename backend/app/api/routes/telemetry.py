@@ -91,7 +91,7 @@ def _build_telemetry_entity(current_device: Device, payload: TelemetryIngestRequ
     )
 
 
-def _persist_telemetry_record(
+def _persist_single_telemetry_record(
     db: Session,
     current_device: Device,
     payload: TelemetryIngestRequest,
@@ -101,6 +101,28 @@ def _persist_telemetry_record(
     db.flush()
     alert = maybe_store_alert_for_telemetry(db, telemetry)
     return telemetry, alert
+
+
+def _persist_batch_telemetry_records(
+    db: Session,
+    current_device: Device,
+    payloads: list[TelemetryIngestRequest],
+) -> tuple[list[DeviceData], int]:
+    telemetry_items = [
+        _build_telemetry_entity(current_device, payload)
+        for payload in payloads
+    ]
+    if not telemetry_items:
+        return [], 0
+
+    db.add_all(telemetry_items)
+    db.flush()
+
+    alerts_created = 0
+    for telemetry in telemetry_items:
+        if maybe_store_alert_for_telemetry(db, telemetry) is not None:
+            alerts_created += 1
+    return telemetry_items, alerts_created
 
 
 @router.post(
@@ -115,7 +137,7 @@ def ingest_telemetry(
     current_device: Device = Depends(get_current_device),
     db: Session = Depends(get_db),
 ) -> TelemetryRead:
-    telemetry, alert = _persist_telemetry_record(db, current_device, payload)
+    telemetry, alert = _persist_single_telemetry_record(db, current_device, payload)
     db.commit()
     db.refresh(telemetry)
     if alert is not None:
@@ -212,18 +234,13 @@ def ingest_telemetry_batch(
             ),
         )
 
-    anomaly_items = 0
-    intrusion_items = 0
-    alerts_created = 0
-
-    for item in payload.items:
-        telemetry, alert = _persist_telemetry_record(db, current_device, item)
-        if telemetry.anomaly_flag:
-            anomaly_items += 1
-        if telemetry.intrusion_flag:
-            intrusion_items += 1
-        if alert is not None:
-            alerts_created += 1
+    telemetry_items, alerts_created = _persist_batch_telemetry_records(
+        db,
+        current_device,
+        payload.items,
+    )
+    anomaly_items = sum(1 for item in telemetry_items if item.anomaly_flag)
+    intrusion_items = sum(1 for item in telemetry_items if item.intrusion_flag)
 
     db.commit()
 
@@ -386,4 +403,3 @@ def fetch_telemetry(
         start_time=normalized_start,
         end_time=normalized_end,
     )
-
