@@ -142,6 +142,7 @@ class TelemetryStreamService:
 
         session = get_session_factory()()
         try:
+            telemetry_items: list[DeviceData] = []
             for record in records:
                 telemetry_record = {
                     "device_id": record.device.id,
@@ -185,9 +186,13 @@ class TelemetryStreamService:
                         else None
                     ),
                 )
-                session.add(telemetry)
+                telemetry_items.append(telemetry)
+
+            if telemetry_items:
+                session.add_all(telemetry_items)
                 session.flush()
 
+            for telemetry in telemetry_items:
                 alert = maybe_store_alert_for_telemetry(session, telemetry)
                 self._stats.ingested += 1
                 if telemetry.anomaly_flag:
@@ -211,4 +216,3 @@ _telemetry_stream_service = TelemetryStreamService()
 
 def get_telemetry_stream_service() -> TelemetryStreamService:
     return _telemetry_stream_service
-
