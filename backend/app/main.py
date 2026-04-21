@@ -9,6 +9,7 @@ from backend.app.api.router import api_router
 from backend.app.api.routes.health import router as health_router
 from backend.app.core.config import get_settings
 from backend.app.core.logging import configure_logging
+from backend.app.core.metrics import PrometheusMetricsMiddleware, metrics_router
 from backend.app.middleware import (
     AuditLoggingMiddleware,
     AuthenticationMiddleware,
@@ -116,6 +117,7 @@ def create_app() -> FastAPI:
         enforce_json_content_type=settings.api_enforce_json_content_type,
         max_request_body_bytes=settings.api_max_request_body_bytes,
     )
+    application.add_middleware(PrometheusMetricsMiddleware)
     application.add_middleware(
         AuthenticationMiddleware,
         api_prefix=settings.api_v1_prefix,
@@ -142,6 +144,7 @@ def create_app() -> FastAPI:
         enabled=settings.audit_logging_enabled,
     )
     application.include_router(health_router)
+    application.include_router(metrics_router)
     application.include_router(api_router, prefix=settings.api_v1_prefix)
     return application
 
