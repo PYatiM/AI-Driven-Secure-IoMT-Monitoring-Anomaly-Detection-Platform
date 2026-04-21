@@ -1,8 +1,8 @@
 from datetime import datetime, timedelta, timezone
 
-import jwt
-from jwt import InvalidTokenError
 from passlib.context import CryptContext
+
+from backend.app.security.tokens import InvalidTokenError, decode_jwt, encode_jwt
 
 pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
 USER_ACCESS_TOKEN_TYPE = "access"
@@ -32,7 +32,7 @@ def create_access_token(
         "iat": int(now.timestamp()),
         "exp": int(expires_at.timestamp()),
     }
-    return str(jwt.encode(payload, secret_key, algorithm=algorithm))
+    return encode_jwt(payload, secret_key, algorithm=algorithm)
 
 
 def decode_access_token(
@@ -41,7 +41,7 @@ def decode_access_token(
     algorithm: str,
     expected_type: str = USER_ACCESS_TOKEN_TYPE,
 ) -> dict:
-    payload = jwt.decode(token, secret_key, algorithms=[algorithm])
+    payload = decode_jwt(token, secret_key, algorithm=algorithm)
     if payload.get("type") != expected_type:
         raise InvalidTokenError("Unsupported token type.")
     return payload

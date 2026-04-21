@@ -5,7 +5,6 @@ import math
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
-from jwt import InvalidTokenError
 from sqlalchemy import case, desc, func, or_, select
 from sqlalchemy.orm import Session
 
@@ -24,6 +23,7 @@ from backend.app.schemas.monitoring import (
 )
 from backend.app.security.auth import decode_access_token
 from backend.app.security.key_storage import get_jwt_secret_key
+from backend.app.security.tokens import InvalidTokenError
 from backend.app.services.audit import set_audit_context
 
 router = APIRouter(prefix="/monitoring", tags=["monitoring"])

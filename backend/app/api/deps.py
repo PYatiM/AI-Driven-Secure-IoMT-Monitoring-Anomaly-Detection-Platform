@@ -2,7 +2,6 @@
 from datetime import datetime, timezone
 
 from fastapi import Depends, Header, HTTPException, Request, status
-from jwt import InvalidTokenError
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -12,6 +11,7 @@ from backend.app.db.session import get_db
 from backend.app.security.api_keys import build_api_key_lookup
 from backend.app.security.auth import decode_access_token, decode_device_access_token
 from backend.app.security.key_storage import get_device_token_secret_key, get_jwt_secret_key
+from backend.app.security.tokens import InvalidTokenError
 from backend.app.services.security_events import (
     SecurityEventCategory,
     SecurityEventOutcome,
